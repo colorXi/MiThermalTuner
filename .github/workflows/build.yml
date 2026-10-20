@@ -26,12 +26,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'build-tools;34.0.0 platform-tools'
+          packages: 'build-tools;36.0.0 platform-tools platforms;android-36.1'
+          accept-android-sdk-licenses: true
 
       - name: Build APK
         run: python tools/build_apk.py --out MiThermal.apk
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Inject APK into module
         run: |
