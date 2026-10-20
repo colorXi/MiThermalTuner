@@ -7,6 +7,21 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [v1.1.1] - 2026-10-20
+
+### Added
+
+- **仓库内提供预编译成品**，不想自己编译的直接下载：
+  - `releases/MiThermalTuner-v1.1.1.zip` —— Magisk / KernelSU 模块
+  - `releases/MiThermal-v1.1.1.apk` —— 独立图形界面 App
+  - `releases/SHA256SUMS.txt` —— 完整性校验
+- README 顶部新增「⬇ 直接下载」板块，含安装步骤与推送命令
+- `tools/make_release.py` —— 一键生成成品目录与 SHA256 校验文件
+
+### Changed
+
+- 模块版本升到 v1.1.1 / 10101
+
 ## [v1.1.0] - 2026-10-20
 
 ### Changed

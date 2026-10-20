@@ -3,10 +3,14 @@ build/
 dist/
 *.apk
 !module/app/MiThermal.apk
+!releases/*.apk
 *.idsig
 *.class
 *.jar
 !app/mithermal.keystore
+
+# 预编译成品要提交进仓库 (给不想自己编译的人直接下载)
+!releases/*.zip
 
 # Python
 __pycache__/

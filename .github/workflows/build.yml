@@ -40,6 +40,9 @@ jobs:
       - name: Build Magisk module zip
         run: python tools/build_module_zip.py --out dist/MiThermalTuner.zip
 
+      - name: Generate release artifacts + checksums
+        run: python tools/make_release.py "${GITHUB_REF_NAME}"
+
       - name: Verify module zip layout
         run: |
           python - <<'PY'
@@ -79,6 +82,7 @@ jobs:
           path: |
             MiThermal.apk
             dist/MiThermalTuner.zip
+            releases/SHA256SUMS.txt
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -87,4 +91,5 @@ jobs:
           files: |
             MiThermal.apk
             dist/MiThermalTuner.zip
+            releases/SHA256SUMS.txt
           generate_release_notes: true

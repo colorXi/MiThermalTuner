@@ -15,6 +15,31 @@
 
 ---
 
+## ⬇ 直接下载（不想自己编译的看这里）
+
+| 成品 | 说明 | 大小 |
+|---|---|---|
+| [**`MiThermalTuner-v1.1.1.zip`**](releases/MiThermalTuner-v1.1.1.zip) | Magisk / KernelSU 模块，**装完自动带上图形界面 App** | 38 KB |
+| [**`MiThermal-v1.1.1.apk`**](releases/MiThermal-v1.1.1.apk) | 独立图形界面 App（需先装模块） | 25 KB |
+| [**`SHA256SUMS.txt`**](releases/SHA256SUMS.txt) | 完整性校验 | — |
+
+也可以去 [**Releases 页面**](https://github.com/colorXi/MiThermalTuner/releases) 下载（含历史版本与自动构建产物）。
+
+**安装步骤**
+
+```powershell
+adb push releases/MiThermalTuner-v1.1.1.zip /sdcard/Download/
+```
+
+1. Magisk / KernelSU App → **模块** → 从本地安装 → 选中该 zip → **重启**
+2. 桌面会出现「**温控面板**」图标，打开后授予 Root 权限
+3. 完事。想用命令行就 `adb shell su` 然后 `mt status`
+
+> 只想单独装 App 的话直接装 `MiThermal-v1.1.1.apk` 即可，
+> 但它依赖模块里的 `mt` 命令，模块没装的话界面会提示找不到模块。
+
+---
+
 ## 这是什么
 
 小米设备上的温控参数（降频阈值、充电限流、GPU/基带限功率…）全部放在
@@ -263,6 +288,10 @@ python tools/build_module_zip.py     # -> dist/MiThermalTuner.zip
 
 ```
 .
+├── releases/                预编译成品 (不想编译的直接下载)
+│   ├── MiThermalTuner-v1.1.1.zip
+│   ├── MiThermal-v1.1.1.apk
+│   └── SHA256SUMS.txt
 ├── module/                  Magisk 模块
 │   ├── module.prop
 │   ├── customize.sh         安装脚本(自检 + 自动装 App)
@@ -282,12 +311,12 @@ python tools/build_module_zip.py     # -> dist/MiThermalTuner.zip
 ├── tools/
 │   ├── build_apk.py
 │   ├── build_module_zip.py
+│   ├── make_release.py      打包成品 + 生成 SHA256
 │   ├── mt_editor.py
 │   └── decrypt_tool.py
 ├── reference/decrypted/     16 个场景的明文配置 (供研究)
 ├── docs/
-│   ├── ui.png
-│   ├── shots/                 界面截图
+│   ├── shots/               界面截图
 │   └── thermal-config-format.md
 └── .github/workflows/build.yml
 ```
