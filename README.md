@@ -7,7 +7,7 @@
 **作者：达人怪**  ·  微信 `UVWAPP`
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Android%208%2B-3DDC84)
+![Platform](https://img.shields.io/badge/platform-%E5%B0%8F%E7%B1%B3%E6%BE%8C%E6%B9%83OS%20%2F%20Android%2010%2B-3DDC84)
 ![Module](https://img.shields.io/badge/module-Magisk%20%2F%20KernelSU-ff6900)
 ![Author](https://img.shields.io/badge/author-%E8%BE%BE%E4%BA%BA%E6%80%AA-ff6b2c)
 
@@ -47,7 +47,7 @@
 
 | 项目 | 要求 |
 |---|---|
-| 设备 | 搭载 `mi_thermald` 的小米设备（本项目在 Redmi Note 10 Pro 5G / SM7325 / Android 13 上验证） |
+| 设备 | 搭载 `mi_thermald` 的小米设备（本项目在 Redmi Note 10 Pro 5G `2109119BC` / SM7325 / **小米澎湃OS HyperOS `OS1.0.2.0.TKVCNXM`（基于 Android 13）** 上验证） |
 | Root | Magisk / KernelSU / APATCH 任一，需要 `su` |
 | 底层 | 内核需有 `CONFIG_THERMAL`（几乎所有高通/联发科机型都有） |
 | Shell | 需 busybox 提供 `awk`（**必须**带 `xor()` / `lshift()`，toybox awk 不行） |
