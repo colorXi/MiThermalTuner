@@ -690,7 +690,7 @@ $('btnLog').onclick = async ()=>{
   modal('监控日志 (最近 40 行)', r || '(暂无日志)');
 };
 $('btnAbout').onclick = ()=>{
-  modal('关于', 'MiThermal 温控面板 v1.1.0\n\n配合 Magisk 模块 MiThermalTuner 使用。\n\n· 解密 / 修改 mi_thermald 场景配置\n· 实时查看温控状态与频率\n· 实时限制 CPU / GPU / 充电电流\n\n加密: AES-128-CBC (key=iv="thermalopenssl.h")\n\n——————\n作者: 达人怪\n微信: UVWAPP\nGitHub: github.com/colorXi/MiThermalTuner');
+  modal('关于', 'MiThermal 温控面板 v1.2.0\n\n配合 Magisk 模块 MiThermalTuner 使用。\n\n· 解密 / 修改 mi_thermald 场景配置\n· 实时查看温控状态与频率\n· 实时限制 CPU / GPU / 充电电流\n\n加密: AES-128-CBC (key=iv="thermalopenssl.h")\n\n——————\n作者: 达人怪\n微信: UVWAPP\nGitHub: github.com/colorXi/MiThermalTuner');
 };
 $('btnView').onclick = async ()=>{
   const r = await native('mt show '+$('selSc').value);
