@@ -40,6 +40,50 @@ adb push releases/MiThermalTuner-v1.2.0.zip /sdcard/Download/
 
 ---
 
+## 温控降频阶梯对比
+
+这台机器的 `mi_thermald` 一共管着 **15 个场景**，每个场景一套「温度 → 频率」的降频阶梯。
+下面这张图把 `policy4`（大核）的阶梯全部画了出来：
+
+<div align="center">
+  <img src="docs/scene-ladder.svg" alt="小米温控降频阶梯对比" width="100%">
+</div>
+
+<details>
+<summary><b>速查表（点击展开）</b></summary>
+
+| 场景 | 起降温度 | 降频阶梯 (温度 → 频率) | 最低 |
+|---|---|---|---|
+| **日常 normal** | 39°C | 39°C/1.65G → 40°C/1.52G → 41°C/1.23G → 45°C/0.94G → 47°C/0.69G | 0.69 GHz |
+| **游戏 mgame** | 46°C | 46°C/0.69G | 0.69 GHz |
+| **腾讯游戏 tgame** | 46°C | 46°C/0.69G | 0.69 GHz |
+| **极致省电 class0** | 35°C | 35°C/2.05G → 37°C/1.65G → 41°C/1.52G → 43°C/1.34G → 44°C/0.94G → 47°C/0.69G | 0.69 GHz |
+| **视频 video** | 35°C | 35°C/2.05G → 38°C/1.65G → 41°C/1.52G → 43°C/1.34G → 44°C/0.94G → 47°C/0.69G | 0.69 GHz |
+| **视频通话** | 35°C | 35°C/1.90G → 36°C/1.65G → 38°C/1.34G → 40°C/1.23G → 42°C/0.94G → 46°C/0.69G | 0.69 GHz |
+| **YouTube** | 35°C | 35°C/1.90G → 37°C/1.65G → 39°C/1.52G → 41°C/1.23G → 44°C/0.94G → 47°C/0.69G | 0.69 GHz |
+| **导航** | 35°C | 35°C/1.90G → 39°C/1.65G → 41°C/1.52G → 42°C/1.34G → 44°C/0.94G → 47°C/0.69G | 0.69 GHz |
+| **相机** | 40°C | 40°C/1.65G → 41°C/1.52G → 42°C/1.34G → 44°C/0.94G → 46°C/0.69G | 0.69 GHz |
+| **4K 录制** | 40°C | 40°C/1.65G → 41°C/1.52G → 42°C/1.34G → 44°C/0.94G → 46°C/0.69G | 0.69 GHz |
+| **8K 录制** | 40°C | 40°C/1.65G → 41°C/1.52G → 42°C/1.34G → 44°C/0.94G → 46°C/0.69G | 0.69 GHz |
+| **环境护眼** | 35°C | 35°C/2.13G → 39°C/1.65G → 40°C/1.52G → 41°C/0.94G → 42°C/0.69G | 0.69 GHz |
+| **通话 phone** | 27°C | 27°C/1.23G → 32°C/0.94G → 42°C/0.69G | 0.69 GHz |
+| **不限制 nolimits** | 51°C | 51°C/0.69G | 0.69 GHz |
+| **仅充电 chg-only** | 39°C | 39°C/1.65G → 41°C/1.52G → 42°C/1.34G → 44°C/0.94G → 49°C/0.69G | 0.69 GHz |
+
+> 全部场景最终都会降到 **0.69 GHz**，区别只在「什么时候开始降」和「降得多狠」。
+> **通话场景 27°C 就开始降**，极其激进；**游戏场景 46°C 才一刀切到 0.69G**。
+
+</details>
+
+图和表都是脚本生成的，改了配置可以直接重新生成：
+
+```bash
+python tools/gen_chart.py     # -> docs/scene-ladder.svg
+python tools/gen_table.py     # -> docs/scene-ladder-table.md
+```
+
+---
+
 ## 这是什么
 
 小米设备上的温控参数（降频阈值、充电限流、GPU/基带限功率…）全部放在
@@ -372,11 +416,15 @@ python tools/build_module_zip.py     # -> dist/MiThermalTuner.zip
 │   ├── build_apk.py
 │   ├── build_module_zip.py
 │   ├── make_release.py      打包成品 + 生成 SHA256
+│   ├── gen_chart.py         生成降频阶梯对比图 (SVG)
+│   ├── gen_table.py         生成降频阶梯表格 (Markdown)
 │   ├── mt_editor.py
 │   └── decrypt_tool.py
 ├── reference/decrypted/     16 个场景的明文配置 (供研究)
 ├── docs/
 │   ├── shots/               界面截图
+│   ├── scene-ladder.svg     16 场景降频阶梯对比图
+│   ├── scene-ladder-table.md 同上, Markdown 表格
 │   └── thermal-config-format.md
 └── .github/workflows/build.yml
 ```
