@@ -1,0 +1,57 @@
+name: Bug report
+description: 报告问题
+labels: bug
+body:
+  - type: textarea
+    id: desc
+    attributes:
+      label: 问题描述
+      description: 出了什么现象
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备型号
+      placeholder: Redmi Note 10 Pro 5G (2109119BC)
+    validations:
+      required: true
+
+  - type: input
+    id: android
+    attributes:
+      label: Android 版本
+      placeholder: 13
+    validations:
+      required: true
+
+  - type: input
+    id: magisk
+    attributes:
+      label: Magisk 版本
+      placeholder: 30.7
+
+  - type: dropdown
+    id: root
+    attributes:
+      label: Root 方案
+      options: [Magisk, KernelSU, APatch, 其他]
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关输出
+      description: |
+        ```
+        adb shell su -c "mt status"
+        adb shell su -c "cat /data/vendor/thermal/decrypt.txt | head -30"
+        ```
+      render: shell
+
+  - type: textarea
+    id: other
+    attributes:
+      label: 其他信息

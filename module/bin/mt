@@ -1,0 +1,229 @@
+#!/system/bin/sh
+#=======================================================================
+#  MiThermal Tuner  -  command line interface
+#
+#  usage:  mt <command> [args]
+#
+#  monitor
+#    status                 实时状态快照
+#    watch [sec]            前台实时监控 (默认 3 秒)
+#    log [-n N]             查看后台监控日志
+#    daemon [sec]           后台监控循环 (由 service.sh 调用)
+#
+#  scenario config
+#    scenarios              列出所有场景
+#    show <scenario>        显示场景明文配置
+#    set <scenario> <section> <key> <value...>   改阈值并立即应用
+#    profile list           列出预设
+#    profile apply <name>   应用预设
+#    restore                移除全部场景覆写, 恢复原厂
+#
+#  live overrides
+#    cap cpu <policy> <khz|off>
+#    cap gpu <khz|off>
+#    cap charge <state|off>
+#    tempstate <n|off>
+#    overrides              列出当前实时覆写
+#    reset                  清除全部实时覆写
+#=======================================================================
+
+MODDIR=/data/adb/modules/mi_thermal_tuner
+. $MODDIR/lib/common.sh
+. $MODDIR/lib/monitor.sh
+
+usage() { sed -n '2,30p' "$0" | sed 's/^#//'; }
+
+case "$1" in
+  status)
+    mt_status
+    ;;
+
+  watch)
+    _iv=${2:-3}
+    echo "== MiThermal Tuner 实时监控 (Ctrl-C 退出) =="
+    while true; do
+      mt_sample
+      printf "%s  virt=%s quiet=%s cpu=%s batt=%s  p0=%s p4=%s p7=%s gpu=%s  I=%s  st=%s  cool:%s\n" \
+        "$(date '+%H:%M:%S')" \
+        "$(mt_c2t "$MT_S_VIRT")" "$(mt_c2t "$MT_S_QUIET")" "$(mt_c2t "$MT_S_CPU")" \
+        "$(mt_c2t "$MT_S_BAT")" "$MT_S_P0" "$MT_S_P4" "$MT_S_P7" "$MT_S_GPU" \
+        "$MT_S_CUR" "$MT_S_TSTATE" "${MT_S_COOL:-none}"
+      sleep "$_iv"
+    done
+    ;;
+
+  daemon)
+    _iv=${2:-5}
+    mkdir -p "$WORK"
+    mt_build_zone_idx
+    [ -s "$LOGFILE" ] || mt_log_header > "$LOGFILE"
+    while true; do
+      mt_sample
+      mt_ovr_reapply
+      mt_log_rotate
+      mt_log_line >> "$LOGFILE"
+      sleep "$_iv"
+    done
+    ;;
+
+  log)
+    _n=40
+    [ "$2" = "-n" ] && _n=${3:-40}
+    tail -n "$_n" "$LOGFILE" 2>/dev/null || echo "还没有日志: $LOGFILE"
+    ;;
+
+  scenarios)
+    for s in $(mt_all_scenarios); do
+      _st="原厂"
+      [ -f "$APPLY_DIR/$s" ] && _st="已覆写"
+      echo "$s | $(scenario_label "$s") | $_st"
+    done
+    ;;
+
+  scenarios.list)
+    _out=""
+    for s in $(mt_all_scenarios); do
+      _st="false"
+      [ -f "$APPLY_DIR/$s" ] && _st="true"
+      [ -n "$_out" ] && _out="$_out,"
+      _out="$_out{\"name\":\"$s\",\"label\":\"$(scenario_label "$s")\",\"overridden\":$_st}"
+    done
+    echo "[$_out]"
+    ;;
+
+  show)    _s=$2
+    if [ -z "$_s" ]; then
+      echo "用法: mt show <scenario>   例如: mt show thermal-normal.conf"
+      exit 1
+    fi
+    mt_cache_get "$_s" || { echo "!! 无法读取 $_s" >&2; exit 1; }
+    cat "$PLAIN_DIR/$_s"
+    ;;
+
+  set)
+    if [ $# -lt 5 ]; then
+      echo "用法: mt set <scenario> <section> <key> <value...>"
+      echo "例:   mt set thermal-normal.conf MONITOR-SS-CPU4 trig \"50000 51000 52000 53000 54000\""
+      exit 1
+    fi
+    _sc=$2; _sec=$3; _key=$4
+    shift 4
+    mt_set_key "$_sc" "$_sec" "$_key" "$@"
+    ;;
+
+  profile)
+    case "$2" in
+      list|"")
+        printf "%-12s %s\n" "名称" "说明"
+        for p in $MODDIR/profiles/*.profile; do
+          [ -f "$p" ] || continue
+          n=${p##*/}; n=${n%.profile}
+          d=$($BB grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
+          printf "%-12s %s\n" "$n" "$d"
+        done
+        ;;
+      show)
+        _n=$3
+        [ -f "$MODDIR/profiles/$_n.profile" ] && cat "$MODDIR/profiles/$_n.profile" || echo "没有该预设"
+        ;;
+      apply)
+        _n=$3
+        if [ "$_n" = "stock" ]; then
+          mt_apply_restore
+        else
+          mt_profile_apply "$MODDIR/profiles/$_n.profile"
+        fi
+        ;;
+      *) echo "用法: mt profile list|show <name>|apply <name>" ;;
+    esac
+    ;;
+
+  restore)
+    mt_apply_restore
+    ;;
+
+  cap)
+    case "$2" in
+      cpu)
+        [ $# -lt 4 ] && { echo "用法: mt cap cpu <policy 0|4|7> <khz|off>"; exit 1; }
+        mt_cap_cpu "$3" "$4"
+        ;;
+      gpu)
+        [ $# -lt 3 ] && { echo "用法: mt cap gpu <khz|off>"; exit 1; }
+        mt_cap_gpu "$3"
+        ;;
+      charge)
+        [ $# -lt 3 ] && { echo "用法: mt cap charge <state 0-16|off>"; exit 1; }
+        mt_cap_charge "$3"
+        ;;
+      *) echo "用法: mt cap cpu|gpu|charge ..." ;;
+    esac
+    ;;
+
+  tempstate)
+    [ $# -lt 2 ] && { echo "用法: mt tempstate <n|off>"; exit 1; }
+    mt_tempstate "$2"
+    ;;
+
+  overrides)
+    mt_ovr_list
+    ;;
+
+  reset)
+    for p in 0 4 7; do mt_cap_cpu "$p" off; done
+    mt_cap_gpu off
+    mt_cap_charge off
+    mt_tempstate off
+    mt_ovr_save
+    : > "$OVERRIDE_FILE"
+    echo "实时覆写已全部清除"
+    ;;
+
+  json)
+    mt_json
+    ;;
+
+  sections)
+    [ -z "$2" ] && { echo "用法: mt sections <scenario>"; exit 1; }
+    mt_json_sections "$2"
+    ;;
+
+  json.scenarios)
+    _out=""
+    for s in $(mt_all_scenarios); do
+      _st="false"
+      [ -f "$APPLY_DIR/$s" ] && _st="true"
+      [ -n "$_out" ] && _out="$_out,"
+      _out="$_out{\"name\":\"$s\",\"label\":\"$(scenario_label "$s")\",\"overridden\":$_st}"
+    done
+    echo "[$_out]"
+    ;;
+
+  json.profiles)
+    _out=""
+    for p in $MODDIR/profiles/*.profile; do
+      [ -f "$p" ] || continue
+      n=${p##*/}; n=${n%.profile}
+      d=$($BB grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
+      [ -n "$_out" ] && _out="$_out,"
+      _out="$_out{\"name\":\"$n\",\"desc\":\"$d\"}"
+    done
+    echo "[$_out]"
+    ;;
+
+  decrypt)
+    mt_cache_refresh
+    echo "已重新解密全部场景配置到 $PLAIN_DIR"
+    ;;
+
+  ""|help|-h|--help)
+    usage
+    ;;
+
+  *)
+    echo "未知命令: $1"
+    echo
+    usage
+    exit 1
+    ;;
+esac

@@ -1,0 +1,18 @@
+name: Feature request
+description: 功能建议
+labels: enhancement
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: 想做什么
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 属于哪一块
+      options: [图形界面 App, 温控配置修改, 实时限制, 监控日志, 构建/打包, 其他]
+    validations:
+      required: true

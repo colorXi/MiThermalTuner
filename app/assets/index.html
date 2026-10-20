@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>温控面板</title>
+<style>
+:root{
+  --bg:#0B0E14; --card:#141924; --card2:#1B2130; --line:#242C3B;
+  --fg:#E8EDF5; --dim:#8A94A6; --dim2:#5C6678;
+  --acc:#FF6B2C; --acc2:#2DD4BF; --warn:#FBBF24; --bad:#F0525B; --ok:#34D399;
+  --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font:14px/1.5 -apple-system,"MiSans","HarmonyOS Sans SC","Noto Sans CJK SC",Roboto,sans-serif;
+  -webkit-user-select:none;user-select:none}
+body{padding-bottom:86px}
+.wrap{padding:0 14px}
+
+/* ---------- header ---------- */
+header{position:sticky;top:0;z-index:20;background:rgba(11,14,20,.92);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+  padding:12px 16px 11px;display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;font-weight:700;margin:0;letter-spacing:.3px}
+.badge{margin-left:auto;font-size:11px;padding:4px 10px;border-radius:99px;
+  border:1px solid var(--line);color:var(--dim);background:var(--card);white-space:nowrap}
+.badge.on{color:var(--ok);border-color:#1E5A47;background:#0E2A22}
+.badge.off{color:var(--bad);border-color:#5A2027;background:#2A1215}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;
+  margin-right:6px;vertical-align:middle}
+
+/* ---------- card ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin-top:12px}
+.card h2{font-size:12px;font-weight:600;color:var(--dim);margin:0 0 12px;
+  letter-spacing:1.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card h2 .sp{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;font-size:11px}
+
+/* ---------- hero ---------- */
+.hero{display:flex;align-items:center;gap:16px}
+.gauge{position:relative;width:132px;height:132px;flex:0 0 auto}
+.gauge svg{transform:rotate(-90deg);display:block}
+.gauge .val{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px}
+.gauge .val b{font-size:31px;font-weight:700;letter-spacing:-1px;line-height:1}
+.gauge .val span{font-size:10px;color:var(--dim2);letter-spacing:1px}
+.hero-info{flex:1;min-width:0}
+.hero-info .sc{font-size:15px;font-weight:600;margin-bottom:2px}
+.hero-info .sc em{font-style:normal;font-size:10px;color:var(--acc);border:1px solid #4A2A18;
+  background:#25160E;border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:2px}
+.hero-info .meta{font-size:11.5px;color:var(--dim);margin-top:8px;line-height:1.9}
+.hero-info .meta b{color:var(--fg);font-weight:600}
+#spark{width:100%;height:34px;display:block;margin-top:8px}
+
+/* ---------- bars ---------- */
+.row{display:flex;align-items:center;gap:10px;margin:9px 0}
+.row .nm{width:74px;font-size:12px;color:var(--dim);flex:0 0 auto}
+.row .bar{flex:1;height:7px;border-radius:99px;background:#222836;overflow:hidden;position:relative}
+.row .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;
+  background:linear-gradient(90deg,#2DD4BF,#FBBF24 62%,#F0525B);transition:width .35s}
+.row .val{width:62px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.row .val s{text-decoration:none;color:var(--dim2);font-size:10.5px}
+
+/* ---------- freq ---------- */
+.freq{display:flex;align-items:center;gap:10px;margin:10px 0}
+.freq .nm{width:74px;font-size:12px;color:var(--dim)}
+.freq .track{flex:1;height:26px;background:#1A2130;border-radius:8px;position:relative;overflow:hidden}
+.freq .track .max{position:absolute;left:0;top:0;bottom:0;background:#243044;border-radius:8px}
+.freq .track .cur{position:absolute;left:0;top:0;bottom:0;border-radius:8px;
+  background:linear-gradient(90deg,rgba(45,212,191,.85),rgba(45,212,191,.55))}
+.freq .num{margin-left:8px;font-size:12px;width:76px;text-align:right;
+  font-variant-numeric:tabular-nums;color:var(--fg)}
+.freq .num s{text-decoration:none;color:var(--dim2);font-size:10px}
+
+/* ---------- buttons ---------- */
+.grid{display:grid;gap:8px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g5{grid-template-columns:repeat(5,1fr)}
+button{font:inherit;color:var(--fg);background:var(--card2);border:1px solid var(--line);
+  border-radius:11px;padding:11px 6px;font-size:12.5px;cursor:pointer;
+  transition:.16s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.35}
+button:active{transform:scale(.96)}
+button small{font-size:9.5px;color:var(--dim2);font-weight:400}
+button.on{background:linear-gradient(180deg,#FF7A3D,#E85A1C);border-color:#FF8A50;color:#fff;
+  box-shadow:0 4px 16px rgba(255,107,44,.28)}
+button.on small{color:rgba(255,255,255,.78)}
+button.ghost{background:transparent}
+button.danger{color:#FF8B91;border-color:#4A2126}
+button.danger:active{background:#2A1215}
+button:disabled{opacity:.42}
+
+/* ---------- slider ---------- */
+.sl{margin:13px 0}
+.sl .top{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}
+.sl .top b{font-size:12.5px;font-weight:600}
+.sl .top span{margin-left:auto;font-size:12.5px;color:var(--acc2);font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;margin:0;
+  touch-action:pan-y}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:99px;background:#252D3D}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:var(--acc);margin-top:-7px;box-shadow:0 2px 8px rgba(255,107,44,.45);border:2px solid #fff2}
+input[type=range]::-moz-range-track{height:6px;border-radius:99px;background:#252D3D}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border:2px solid #fff2;border-radius:50%;background:var(--acc)}
+
+/* ---------- chips ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11.5px;padding:5px 10px;border-radius:8px;background:var(--card2);
+  border:1px solid var(--line);color:var(--dim);font-variant-numeric:tabular-nums}
+.chip b{color:var(--acc2);font-weight:600;margin-left:4px}
+.chip.hot{border-color:#4A2A18;background:#25160E;color:#FFB694}
+
+/* ---------- editor ---------- */
+select,input[type=text]{font:inherit;width:100%;background:var(--card2);color:var(--fg);
+  border:1px solid var(--line);border-radius:10px;padding:10px 11px;font-size:12.5px;outline:none;
+  -webkit-user-select:text;user-select:text}
+select:focus,input[type=text]:focus{border-color:var(--acc)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),
+  linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:30px}
+.ed{margin-top:9px}
+.ed label{font-size:11px;color:var(--dim);display:block;margin:0 0 5px}
+
+/* ---------- bottom bar ---------- */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;gap:8px;padding:10px 14px;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  background:rgba(11,14,20,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.bar button{flex:1;padding:12px 4px;flex-direction:row;justify-content:center}
+
+/* ---------- toast ---------- */
+#toast{position:fixed;left:50%;transform:translateX(-50%) translateY(-30px);bottom:92px;z-index:50;
+  background:#222A3A;border:1px solid var(--line);color:var(--fg);padding:11px 18px;border-radius:11px;
+  font-size:13px;opacity:0;pointer-events:none;transition:.25s;max-width:86vw;text-align:center;
+  box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{border-color:#5A2027;background:#2A1215;color:#FFB4B8}
+
+/* ---------- modal ---------- */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:40;display:none;
+  align-items:center;justify-content:center;padding:20px}
+.mask.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;
+  width:100%;max-width:420px;max-height:80vh;overflow:auto}
+.modal h3{margin:0 0 12px;font-size:15px}
+.modal .pre{background:#0E121A;border:1px solid var(--line);border-radius:10px;padding:11px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.65;
+  white-space:pre-wrap;word-break:break-all;color:#9FE8DC;max-height:46vh;overflow:auto;
+  -webkit-user-select:text;user-select:text}
+.modal .acts{display:flex;gap:8px;margin-top:14px}
+.modal .acts button{flex:1;flex-direction:row;justify-content:center}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid #ffffff33;border-top-color:var(--acc);
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hint{font-size:11px;color:var(--dim2);margin-top:9px;line-height:1.7}
+.sep{height:1px;background:var(--line);margin:12px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>温控面板</h1>
+  <div class="badge" id="rootBadge"><span class="dot"></span>检测中</div>
+</header>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="card">
+    <div class="hero">
+      <div class="gauge">
+        <svg width="132" height="132" viewBox="0 0 132 132">
+          <circle cx="66" cy="66" r="56" fill="none" stroke="#1E2533" stroke-width="11"/>
+          <circle id="arc" cx="66" cy="66" r="56" fill="none" stroke="url(#g1)" stroke-width="11"
+                  stroke-linecap="round" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#2DD4BF"/><stop offset="55%" stop-color="#FBBF24"/>
+            <stop offset="100%" stop-color="#F0525B"/></linearGradient></defs>
+        </svg>
+        <div class="val"><b id="gTemp">--</b><span>虚拟温度</span></div>
+      </div>
+      <div class="hero-info">
+        <div class="sc" id="scName">读取中…</div>
+        <div class="meta">
+          充电电流 <b id="mCur">--</b> µA · 电量 <b id="mLvl">--</b>%<br>
+          温控状态 <b id="mTs">--</b> · 基带限功率 <b id="mModem">--</b>
+        </div>
+        <canvas id="spark" width="600" height="68"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEMPERATURES -->
+  <div class="card">
+    <h2>温度传感器 <span class="sp" id="tMax">--</span></h2>
+    <div id="sensors"></div>
+  </div>
+
+  <!-- FREQUENCY -->
+  <div class="card">
+    <h2>频率 <span class="sp">当前 / 上限</span></h2>
+    <div id="freqs"></div>
+  </div>
+
+  <!-- PRESETS -->
+  <div class="card">
+    <h2>温控预设</h2>
+    <div class="grid g3" id="presets"></div>
+    <div class="grid g2" style="margin-top:8px">
+      <button id="btnRestore" class="danger">恢复原厂<small>移除全部场景覆写</small></button>
+      <button id="btnReset" class="danger">撤销实时限制<small>CPU/GPU/充电全部还原</small></button>
+    </div>
+  </div>
+
+  <!-- LIMITS -->
+  <div class="card">
+    <h2>实时限制 <span class="sp">即时生效</span></h2>
+    <div class="sl">
+      <div class="top"><b>大核上限 policy4</b><span id="vCpu4">--</span></div>
+      <input type="range" id="rCpu4" min="691200" max="2400000" step="19200" value="2400000">
+    </div>
+    <div class="sl">
+      <div class="top"><b>超大核上限 policy7</b><span id="vCpu7">--</span></div>
+      <input type="range" id="rCpu7" min="806400" max="2400000" step="19200" value="2400000">
+    </div>
+    <div class="sl">
+      <div class="top"><b>GPU 上限</b><span id="vGpu">--</span></div>
+      <input type="range" id="rGpu" min="315000000" max="550000000" step="5000000" value="550000000">
+    </div>
+    <div class="sep"></div>
+    <div class="sl">
+      <div class="top"><b>充电限流档位</b><span id="vChg">--</span></div>
+      <div class="grid g2" style="grid-template-columns:auto 1fr auto;align-items:center">
+        <button id="chgMinus" style="padding:9px 14px">−</button>
+        <input type="range" id="rChg" min="0" max="16" step="1" value="0">
+        <button id="chgPlus" style="padding:9px 14px">+</button>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="sl">
+      <div class="top"><b>系统温控状态 temp_state</b><span id="vTs">--</span></div>
+      <div class="grid g5" id="tsBtns"></div>
+    </div>
+  </div>
+
+  <!-- COOLING -->
+  <div class="card">
+    <h2>生效中的散热设备 <span class="sp" id="cCount">0</span></h2>
+    <div class="chips" id="cooling"></div>
+  </div>
+
+  <!-- EDITOR -->
+  <div class="card">
+    <h2>场景配置编辑 <span class="sp" id="edHint">选场景 → 节 → 键</span></h2>
+    <div class="ed">
+      <label>场景</label>
+      <select id="selSc"></select>
+    </div>
+    <div class="ed">
+      <label>节 (section)</label>
+      <select id="selSec"></select>
+    </div>
+    <div class="ed">
+      <label>键 (key)</label>
+      <select id="selKey"></select>
+    </div>
+    <div class="ed">
+      <label>新值</label>
+      <input type="text" id="edVal" placeholder="例: 50000 51000 52000 53000 54000">
+    </div>
+    <div class="grid g2" style="margin-top:11px">
+      <button id="btnView">查看原文</button>
+      <button id="btnSave" class="on">保存并应用</button>
+    </div>
+    <div class="hint">保存后会自动 AES-128-CBC 加密写入 mi_thermald 的配置目录并重启该进程。</div>
+  </div>
+
+  <div style="height:8px"></div>
+</div>
+
+<div class="bar">
+  <button id="btnRefresh" class="ghost">立即刷新</button>
+  <button id="btnLog" class="ghost">监控日志</button>
+  <button id="btnAbout" class="ghost">关于</button>
+</div>
+
+<div id="toast"></div>
+
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3 id="mTitle">标题</h3>
+    <div class="pre" id="mBody"></div>
+    <div class="acts">
+      <button id="mClose" class="ghost">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const S = { history:[], busy:false, scen:[], secs:[], cur:null, last:null };
+const $ = id => document.getElementById(id);
+
+/* ---------------- bridge ---------------- */
+let cbId = 0;
+const pending = new Map();
+function native(cmd){
+  return new Promise(res =>{
+    const id = ++cbId;
+    pending.set(id, res);
+    try{ Native.exec(cmd, ''+id); }
+    catch(e){ pending.delete(id); res('ERR: '+e); }
+  });
+}
+window.__mtDone = function(id, out){
+  const f = pending.get(+id);
+  if(f){ pending.delete(+id); f(out); }
+};
+function checkEnv(){
+  return new Promise(res=>{
+    const id = ++cbId;
+    pending.set(id, res);
+    try{ Native.check(''+id); }catch(e){ pending.delete(id); res('ERR'); }
+  });
+}
+
+/* ---------------- helpers ---------------- */
+function toast(msg, err){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show' + (err?' err':'');
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>t.className='', 2200);
+}
+function modal(title, body){
+  $('mTitle').textContent = title;
+  $('mBody').textContent = body;
+  $('mask').classList.add('show');
+}
+$('mClose').onclick = ()=>$('mask').classList.remove('show');
+$('mask').onclick = e=>{ if(e.target.id==='mask') $('mask').classList.remove('show'); };
+
+const c2t = v => (v===undefined||v===null||v===0||v<-1000) ? '--' : (v/1000).toFixed(1)+'°C';
+/* CPU 频率单位是 kHz, GPU 是 Hz */
+const khz2s = v => !v ? '--' : v>=1000000 ? (v/1000000).toFixed(2)+' GHz' : Math.round(v/1000)+' MHz';
+const hz2s  = v => !v ? '--' : v>=1000000 ? (v/1000000).toFixed(0)+' MHz' : (v/1000).toFixed(0)+' KHz';
+const khz = v => (v/1000000).toFixed(2)+' GHz';
+
+function parse(s){
+  if(!s) return null;
+  // 可能是对象 {...} 也可能是数组 [{...},{...}]
+  const i = s.search(/[[{]/);
+  const j = Math.max(s.lastIndexOf('}'), s.lastIndexOf(']'));
+  if(i<0 || j<0 || j<i) return null;
+  try{ return JSON.parse(s.slice(i, j+1)); }catch(e){ return null; }
+}
+
+/* ---------------- render ---------------- */
+function render(d){
+  if(!d) return;
+  S.last = d;
+
+  // gauge
+  const vt = d.virtual||0;
+  const pct = Math.max(0, Math.min(1, (vt-20000)/40000));
+  $('arc').style.strokeDashoffset = (351.86*(1-pct)).toFixed(1);
+  $('gTemp').textContent = vt ? (vt/1000).toFixed(1)+'°' : '--';
+
+  // scenario
+  $('scName').innerHTML = (d.label||'未知') + (d.overridden ? '<em>已覆写</em>' : '');
+  $('mCur').textContent = d.current;
+  $('mLvl').textContent = d.level;
+  $('mTs').textContent = d.tempstate;
+  $('mModem').textContent = d.modemlimit;
+
+  // sensors
+  const sens = [
+    ['CPU', d.cpu], ['电池', d.batt], ['主板', d.quiet], ['充电', d.charger],
+    ['WiFi', d.wifi], ['基带0', d.m0], ['基带1', d.m1]
+  ];
+  $('sensors').innerHTML = sens.map(([n,v])=>{
+    const p = Math.max(2, Math.min(100, (v||0)/700));
+    const col = v>=60000?'#F0525B':v>=48000?'#FBBF24':'#2DD4BF';
+    return `<div class="row"><div class="nm">${n}</div>
+      <div class="bar"><i style="width:${p}%;background:linear-gradient(90deg,#2DD4BF,${col})"></i></div>
+      <div class="val">${c2t(v)}</div></div>`;
+  }).join('');
+  $('tMax').textContent = '最高 ' + c2t(Math.max(...sens.map(s=>s[1]||0)));
+
+  // freq  (CPU 单位 kHz, GPU 单位 Hz)
+  const fr = [['CPU0',d.cpu0,d.cpu0max,'k'],['CPU4',d.cpu4,d.cpu4max,'k'],
+              ['CPU7',d.cpu7,d.cpu7max,'k'],['GPU',d.gpu,d.gpumax,'h']];
+  $('freqs').innerHTML = fr.map(([n,c,m,u])=>{
+    const p = m ? Math.max(2,Math.min(100,c/m*100)) : 0;
+    const fmt = u==='k' ? khz2s : hz2s;
+    return `<div class="freq"><div class="nm">${n}</div>
+      <div class="track"><div class="max" style="width:100%"></div>
+      <div class="cur" style="width:${p}%"></div></div>
+      <div class="num">${fmt(c)}<br><s>上限 ${fmt(m)}</s></div></div>`;
+  }).join('');
+
+  // cooling
+  const cd = d.cooling||[];
+  $('cCount').textContent = cd.length;
+  $('cooling').innerHTML = cd.length ? cd.map(x=>
+    `<div class="chip${x.state>=4?' hot':''}">${x.type}<b>${x.state}</b></div>`).join('')
+    : '<div class="chip">当前无散热设备介入</div>';
+
+  // sliders reflect current limits
+  if(!S.dragging){
+    setSlider('rCpu4', d.cpu4max, 'vCpu4', v=>khz(v));
+    setSlider('rCpu7', d.cpu7max, 'vCpu7', v=>khz(v));
+    setSlider('rGpu',  d.gpumax, 'vGpu',  v=>hz2s(v));
+  }
+  const ov = {};
+  (d.overrides||[]).forEach(o=>ov[o.k]=o.v);
+  if(ov.charge!==undefined) $('vChg').textContent = '档位 '+ov.charge;
+  else $('vChg').textContent = '未限制';
+  if(ov.tempstate!==undefined) $('vTs').textContent = '强制 '+ov.tempstate;
+  else $('vTs').textContent = '跟随系统';
+  document.querySelectorAll('#tsBtns button').forEach(b=>{
+    const on = ov.tempstate!==undefined && ov.tempstate===b.dataset.v;
+    b.classList.toggle('on', on);
+  });
+
+  // sparkline
+  S.history.push(vt); if(S.history.length>60) S.history.shift();
+  drawSpark();
+}
+
+function setSlider(id, val, labelId, fmt){
+  const el = $(id);
+  if(val==null) return;
+  if(Math.abs(+el.value - val) < 1) { $(labelId).textContent = fmt(val); return; }
+  el.value = val;
+  $(labelId).textContent = fmt(val);
+}
+
+function drawSpark(){
+  const c = $('spark'), ctx = c.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  const w = c.clientWidth, h = 34;
+  c.width = w*dpr; c.height = h*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const hs = S.history;
+  if(hs.length<2) return;
+  const mn = Math.min(...hs), mx = Math.max(...hs);
+  const rg = Math.max(2000, mx-mn);
+  const X = i => i/(hs.length-1)*(w-4)+2;
+  const Y = v => h-4 - (v-mn)/rg*(h-10);
+  ctx.beginPath();
+  hs.forEach((v,i)=> i?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(i),Y(v)));
+  ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = 1.8;
+  ctx.lineJoin='round'; ctx.stroke();
+  ctx.lineTo(X(hs.length-1), h); ctx.lineTo(X(0), h); ctx.closePath();
+  const gr = ctx.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'rgba(45,212,191,.28)'); gr.addColorStop(1,'rgba(45,212,191,0)');
+  ctx.fillStyle = gr; ctx.fill();
+  const last = hs[hs.length-1];
+  ctx.beginPath(); ctx.arc(X(hs.length-1), Y(last), 2.8, 0, 7);
+  ctx.fillStyle = '#FF6B2C'; ctx.fill();
+}
+
+/* ---------------- data ---------------- */
+async function refresh(){
+  const out = await native('mt json');
+  const d = parse(out);
+  if(d) render(d); else toast('读取失败: '+(out||'').slice(0,80), true);
+}
+
+async function loadPresets(){
+  const out = await native('mt json.profiles');
+  const list = parse(out) || [];
+  const all = [{name:'stock', desc:'移除全部覆写回到原厂'}].concat(list);
+  $('presets').innerHTML = all.map(p=>
+    `<button data-p="${p.name}">${p.name==='stock'?'原厂':p.name}<small>${esc(p.desc||'')}</small></button>`).join('');
+  $('presets').querySelectorAll('button').forEach(b=>{
+    b.onclick = async ()=>{
+      $('presets').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      const r = b.dataset.p==='stock' ? await native('mt restore') : await native('mt profile apply '+b.dataset.p);
+      toast((r||'').trim().split('\n').pop() || '完成');
+      setTimeout(refresh, 1200);
+    };
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadScenarios(){
+  const out = await native('mt json.scenarios');
+  const list = parse(out) || [];
+  S.scen = list;
+  $('selSc').innerHTML = list.map(s=>`<option value="${s.name}">${esc(s.label)}</option>`).join('');
+  $('selSc').onchange = loadSections;
+  loadSections();
+}
+
+async function loadSections(){
+  const sc = $('selSc').value;
+  if(!sc) return;
+  const out = await native('mt sections '+sc);
+  const list = parse(out) || [];
+  S.secs = list;
+  $('selSec').innerHTML = list.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+  $('selKey').innerHTML = '';
+  $('selSec').onchange = fillKeys;
+  fillKeys();
+}
+function fillKeys(){
+  const sec = S.secs.find(s=>s.name===$('selSec').value);
+  const keys = sec ? (sec.keys||'').trim().split(/\s+/).filter(Boolean) : [];
+  $('selKey').innerHTML = keys.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  $('selKey').onchange = loadCurrentValue;
+  loadCurrentValue();
+}
+async function loadCurrentValue(){
+  const sc = $('selSc').value, sec = $('selSec').value, key = $('selKey').value;
+  if(!sc||!sec||!key) return;
+  const out = await native('mt show '+sc);
+  const lines = (out||'').split('\n');
+  let inSec = false, val = '';
+  for(const ln of lines){
+    if(ln.trim().startsWith('[')){ inSec = (ln.trim()==='['+sec+']'); continue; }
+    if(!inSec) continue;
+    const m = ln.match(new RegExp('^\\s*'+key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s+(.*)$'));
+    if(m){ val = m[1].trim(); break; }
+  }
+  $('edVal').value = val;
+  $('edHint').textContent = sc+' / '+sec+' / '+key;
+}
+
+/* ---------------- actions ---------------- */
+$('btnRestore').onclick = async ()=>{
+  const r = await native('mt restore');
+  toast((r||'').trim().split('\n').pop());
+  setTimeout(refresh, 1200);
+};
+$('btnReset').onclick = async ()=>{
+  const r = await native('mt reset');
+  toast((r||'').trim().split('\n').pop());
+  setTimeout(refresh, 1200);
+};
+$('btnRefresh').onclick = ()=>{ refresh(); toast('已刷新'); };
+$('btnLog').onclick = async ()=>{
+  const r = await native('mt log -n 40');
+  modal('监控日志 (最近 40 行)', r || '(暂无日志)');
+};
+$('btnAbout').onclick = ()=>{
+  modal('关于', 'MiThermal 温控面板 v1.0.0\n\n配合 Magisk 模块 MiThermalTuner 使用。\n\n· 解密 / 修改 mi_thermald 场景配置\n· 实时查看温控状态与频率\n· 实时限制 CPU / GPU / 充电电流\n\n加密: AES-128-CBC (key=iv="thermalopenssl.h")');
+};
+$('btnView').onclick = async ()=>{
+  const r = await native('mt show '+$('selSc').value);
+  modal('场景原文 · '+$('selSc').value, r);
+};
+$('btnSave').onclick = async ()=>{
+  const sc = $('selSc').value, sec = $('selSec').value, key = $('selKey').value;
+  const val = $('edVal').value.trim();
+  if(!sc||!sec||!key||!val){ toast('请填写完整', true); return; }
+  const cmd = 'mt set ' + sc + ' ' + sec + ' ' + key + ' "' + val + '"';
+  const r = await native(cmd);
+  const t = (r||'').trim();
+  toast(t.split('\n').pop() || '已保存', /失败|ERR/.test(t));
+  setTimeout(refresh, 1500);
+};
+
+['rCpu4','rCpu7','rGpu','rChg'].forEach(id=>{
+  const el = $(id);
+  el.addEventListener('pointerdown', ()=>S.dragging=true);
+  el.addEventListener('pointerup',   ()=>S.dragging=false);
+  el.addEventListener('input', ()=>{
+    if(id==='rCpu4') $('vCpu4').textContent = khz(el.value);
+    if(id==='rCpu7') $('vCpu7').textContent = khz(el.value);
+    if(id==='rGpu')  $('vGpu').textContent  = hz2s(el.value);
+    if(id==='rChg')  $('vChg').textContent  = '档位 '+el.value;
+  });
+  el.addEventListener('change', async ()=>{
+    if(id==='rCpu4'){ const r=await native('mt cap cpu 4 '+el.value); toast('大核上限已设置'); }
+    if(id==='rCpu7'){ const r=await native('mt cap cpu 7 '+el.value); toast('超大核上限已设置'); }
+    if(id==='rGpu'){  const r=await native('mt cap gpu '+el.value);  toast('GPU 上限已设置'); }
+    if(id==='rChg'){  const r=await native('mt cap charge '+el.value); toast('充电限流档位 '+el.value); }
+    setTimeout(refresh, 700);
+  });
+});
+$('chgMinus').onclick = ()=>{ $('rChg').value = Math.max(0, +$('rChg').value-1); $('rChg').dispatchEvent(new Event('input')); $('rChg').dispatchEvent(new Event('change')); };
+$('chgPlus').onclick  = ()=>{ $('rChg').value = Math.min(16,+$('rChg').value+1); $('rChg').dispatchEvent(new Event('input')); $('rChg').dispatchEvent(new Event('change')); };
+
+function buildTs(){
+  $('tsBtns').innerHTML = ['关','0','1','2','3','4'].map((v,i)=>
+    `<button data-v="${i===0?'off':i-1}">${v}</button>`).join('');
+  $('tsBtns').querySelectorAll('button').forEach(b=>{
+    b.onclick = async ()=>{
+      const v = b.dataset.v;
+      await native('mt tempstate ' + v);
+      toast(v==='off' ? '已恢复跟随系统' : '温控状态强制为 '+v);
+      setTimeout(refresh, 600);
+    };
+  });
+}
+
+/* ---------------- boot ---------------- */
+(async function(){
+  buildTs();
+  const env = parse(await checkEnv());
+  const b = $('rootBadge');
+  if(env && env.root){
+    b.className = 'badge on';
+    b.innerHTML = '<span class="dot"></span>Root 已授权';
+  }else{
+    b.className = 'badge off';
+    b.innerHTML = '<span class="dot"></span>需要 Root';
+    toast('请授予本应用 Root 权限', true);
+  }
+  if(env && env.module==='no'){
+    toast('未检测到 MiThermalTuner 模块', true);
+  }
+  await loadPresets();
+  await loadScenarios();
+  await refresh();
+  setInterval(refresh, 2500);
+})();
+</script>
+</body>
+</html>

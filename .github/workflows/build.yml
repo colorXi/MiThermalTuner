@@ -1,0 +1,91 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;34.0.0 platform-tools'
+
+      - name: Build APK
+        run: python tools/build_apk.py --out MiThermal.apk
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+
+      - name: Inject APK into module
+        run: |
+          mkdir -p module/app
+          cp MiThermal.apk module/app/MiThermal.apk
+
+      - name: Build Magisk module zip
+        run: python tools/build_module_zip.py --out dist/MiThermalTuner.zip
+
+      - name: Verify module zip layout
+        run: |
+          python - <<'PY'
+          import zipfile, sys
+          need = {
+            "module.prop": 0o644,
+            "customize.sh": 0o755,
+            "service.sh": 0o755,
+            "post-fs-data.sh": 0o755,
+            "uninstall.sh": 0o755,
+            "bin/mt": 0o755,
+            "bin/mtaes.awk": 0o644,
+            "bin/mtdec.awk": 0o644,
+            "lib/common.sh": 0o644,
+            "lib/monitor.sh": 0o644,
+            "app/MiThermal.apk": 0o644,
+          }
+          z = zipfile.ZipFile("dist/MiThermalTuner.zip")
+          names = set(z.namelist())
+          bad = []
+          for f, mode in need.items():
+              if f not in names:
+                  bad.append(f"missing {f}")
+                  continue
+              got = (z.getinfo(f).external_attr >> 16) & 0o777
+              if got != mode:
+                  bad.append(f"{f} mode {oct(got)} != {oct(mode)}")
+          if bad:
+              print("\n".join(bad)); sys.exit(1)
+          print("module zip layout OK:", len(names), "entries")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiThermalTuner
+          path: |
+            MiThermal.apk
+            dist/MiThermalTuner.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MiThermal.apk
+            dist/MiThermalTuner.zip
+          generate_release_notes: true

@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+dist/
+*.apk
+!module/app/MiThermal.apk
+*.idsig
+*.class
+*.jar
+!app/mithermal.keystore
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Runtime data (device-side)
+mt_conf/
+*.log
