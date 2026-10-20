@@ -276,6 +276,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
     <div class="hint">保存后会自动 AES-128-CBC 加密写入 mi_thermald 的配置目录并重启该进程。</div>
   </div>
 
+  <div class="card" style="text-align:center;padding:18px 14px">
+    <div style="font-size:12px;color:var(--dim)">MiThermal Tuner</div>
+    <div style="font-size:13px;margin-top:6px;font-weight:600">作者 达人怪</div>
+    <div style="font-size:12px;color:var(--dim);margin-top:3px">微信 UVWAPP</div>
+    <div style="font-size:11px;color:var(--dim2);margin-top:8px">github.com/colorXi/MiThermalTuner</div>
+  </div>
+
   <div style="height:8px"></div>
 </div>
 
@@ -547,7 +554,7 @@ $('btnLog').onclick = async ()=>{
   modal('监控日志 (最近 40 行)', r || '(暂无日志)');
 };
 $('btnAbout').onclick = ()=>{
-  modal('关于', 'MiThermal 温控面板 v1.0.0\n\n配合 Magisk 模块 MiThermalTuner 使用。\n\n· 解密 / 修改 mi_thermald 场景配置\n· 实时查看温控状态与频率\n· 实时限制 CPU / GPU / 充电电流\n\n加密: AES-128-CBC (key=iv="thermalopenssl.h")');
+  modal('关于', 'MiThermal 温控面板 v1.1.0\n\n配合 Magisk 模块 MiThermalTuner 使用。\n\n· 解密 / 修改 mi_thermald 场景配置\n· 实时查看温控状态与频率\n· 实时限制 CPU / GPU / 充电电流\n\n加密: AES-128-CBC (key=iv="thermalopenssl.h")\n\n——————\n作者: 达人怪\n微信: UVWAPP\nGitHub: github.com/colorXi/MiThermalTuner');
 };
 $('btnView').onclick = async ()=>{
   const r = await native('mt show '+$('selSc').value);

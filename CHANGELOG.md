@@ -1,8 +1,22 @@
 # Changelog
 
+> 作者：**达人怪** · 微信 `UVWAPP`
+> 仓库：<https://github.com/colorXi/MiThermalTuner>
+
 All notable changes to this project are documented here.
 
 ## [Unreleased]
+
+## [v1.1.0] - 2026-10-20
+
+### Changed
+
+- 项目作者信息统一为 **达人怪**（微信 `UVWAPP`）
+  - `module.prop` 的 `author` / `description`
+  - README 抬头、联系表、作者区块与英文摘要
+  - App「关于」弹窗与界面底部署名
+  - 打包脚本的证书 DN
+  - GitHub 仓库简介与 Release 说明
 
 ## [v1.0.0] - 2026-10-20
 

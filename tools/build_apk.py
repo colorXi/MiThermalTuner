@@ -212,9 +212,12 @@ def main():
 
     print("[7/7] apksigner")
     if not os.path.exists(KEYSTORE):
+        # 注意: 已提交的 app/mithermal.keystore 为了保证签名连续性保持不变,
+        # 这里只影响全新克隆时自动生成的证书。
         run([keytool, "-genkeypair", "-v", "-keystore", KEYSTORE, "-storepass", KEY_PASS,
              "-alias", KEY_ALIAS, "-keypass", KEY_PASS, "-keyalg", "RSA", "-keysize", "2048",
-             "-validity", "10000", "-dname", "CN=MiThermal, OU=Community, O=MiThermalTuner, L=, S=, C=CN"],
+             "-validity", "10000",
+             "-dname", "CN=MiThermal, OU=Community, O=MiThermalTuner, L=, S=, C=CN"],
             env=env)
     run([apksigner, "sign", "--ks", KEYSTORE, "--ks-pass", "pass:" + KEY_PASS,
          "--key-pass", "pass:" + KEY_PASS, "--ks-key-alias", KEY_ALIAS,

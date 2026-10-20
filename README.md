@@ -4,9 +4,12 @@
 
 **小米温控实时监控与调节 —— 图形界面 + Magisk 模块**
 
+**作者：达人怪**  ·  微信 `UVWAPP`
+
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Android%208%2B-3DDC84)
 ![Module](https://img.shields.io/badge/module-Magisk%20%2F%20KernelSU-ff6900)
+![Author](https://img.shields.io/badge/author-%E8%BE%BE%E4%BA%BA%E6%80%AA-ff6b2c)
 
 </div>
 
@@ -29,6 +32,14 @@
 <div align="center">
   <img src="docs/ui.png" width="360" alt="温控面板">
 </div>
+
+### 联系
+
+| | |
+|---|---|
+| 作者 | **达人怪** |
+| 微信 | **UVWAPP** |
+| Issue | <https://github.com/colorXi/MiThermalTuner/issues> |
 
 ---
 
@@ -297,6 +308,19 @@ sh /data/adb/modules/mi_thermal_tuner/uninstall.sh
 
 ---
 
+## 作者
+
+<div align="center">
+
+**达人怪**
+微信 `UVWAPP`
+
+小米温控调校 · 设备折腾 · 逆向分析
+
+</div>
+
+---
+
 ## License
 
 [GPL-3.0](LICENSE)
@@ -321,6 +345,6 @@ files and uninstalling restores the stock behaviour immediately.
 * Requires: a Xiaomi device running `mi_thermald`, root (Magisk/KernelSU),
   and a busybox with a working `awk` (toybox's awk lacks `xor()`).
 * Build the app with `python tools/build_apk.py` — no Gradle needed.
-* Licensed under GPL-3.0.
+* Author: **达人怪** (WeChat: `UVWAPP`) · Licensed under GPL-3.0.
 
 </div>

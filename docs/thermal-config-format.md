@@ -1,5 +1,8 @@
 # 小米温控配置格式解析
 
+> 作者：**达人怪** · 微信 `UVWAPP`
+> 项目：<https://github.com/colorXi/MiThermalTuner>
+
 本文记录 `mi_thermald` 使用的温控配置文件的结构、字段语义，以及设备端 AES
 实现中踩过的坑。全部内容基于 Redmi Note 10 Pro 5G (`2109119BC`, SM7325,
 Android 13) 实测得出。

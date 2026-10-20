@@ -1,7 +1,7 @@
 id=mi_thermal_tuner
 name=MiThermal Tuner
-version=v1.0.0
-versionCode=10000
-author=colorXi
-description=小米温控实时监控与调节：解密/修改 mi_thermald 场景配置，实时限制 CPU/GPU/充电电流，附图形界面 App。
+version=v1.1.0
+versionCode=10100
+author=达人怪
+description=小米温控实时监控与调节：解密/修改 mi_thermald 场景配置，实时限制 CPU/GPU/充电电流，附图形界面 App。作者：达人怪（微信 UVWAPP）
 updateJson=
