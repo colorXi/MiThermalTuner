@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # MiThermalTuner
 
@@ -30,7 +30,7 @@
 * 常驻监控温控状态、真实温度、实际频率、充电电流、生效中的散热设备
 
 <div align="center">
-  <img src="docs/ui.png" width="330" alt="温控面板 · 仪表盘">
+  <img src="docs/shots/01-dashboard.png" width="330" alt="温控面板 · 仪表盘">
 </div>
 
 ### 界面一览
