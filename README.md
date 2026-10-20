@@ -85,6 +85,22 @@ adb push releases/MiThermalTuner-v1.1.1.zip /sdcard/Download/
 | 微信 | **UVWAPP** |
 | Issue | <https://github.com/colorXi/MiThermalTuner/issues> |
 
+### 写操作都有加载动画和生效校验
+
+所有会改动系统的操作（预设、阈值保存、频率限制、温控状态）都走同一套流程：
+
+```
+全屏遮罩 + 转圈动画  →  执行命令  →  校验是否真的生效  →  明确反馈
+```
+
+* **超时兜底**：原生调用 12 秒看门狗、JS 侧 15 秒兜底、单次操作 30 秒（预设 90 秒）
+* **失败可读**：失败时直接说明原因（超时 / 命令报错 / 未生效），不会只弹「失败」
+* **确保成功**：写完会做两层校验
+  1. `mt verify` —— 把落盘配置解密出来，和 `mi_thermald` 运行时加载的 `decrypt.txt`
+     逐字节比对，确认厂商进程**真的加载了**新配置（带 3 次重试，
+     避免 `mi_thermald` 重启后 `decrypt.txt` 还没刷新造成误报）
+  2. 频率类操作还会回读 sysfs 实际值再比对一遍
+
 ---
 
 ## 兼容性
@@ -93,11 +109,31 @@ adb push releases/MiThermalTuner-v1.1.1.zip /sdcard/Download/
 |---|---|
 | 设备 | 搭载 `mi_thermald` 的小米设备（本项目在 Redmi Note 10 Pro 5G `2109119BC` / SM7325 / **小米澎湃OS HyperOS `OS1.0.2.0.TKVCNXM`（基于 Android 13）** 上验证） |
 | Root | Magisk / KernelSU / APATCH 任一，需要 `su` |
-| 底层 | 内核需有 `CONFIG_THERMAL`（几乎所有高通/联发科机型都有） |
-| Shell | 需 busybox 提供 `awk`（**必须**带 `xor()` / `lshift()`，toybox awk 不行） |
+| **外部依赖** | **无**。只用到 Android 自带的 toybox（`awk` / `od` / `sed` / `grep`），**不需要 busybox**，模块里也不塞任何二进制 |
 
 > Magisk 30.x 起已移除模块 WebUI 支持，因此图形界面做成独立 App，
 > 安装模块时会自动装上，桌面出现「温控面板」图标。
+
+### 关于 busybox 的坑（踩过的）
+
+早期版本把 `/data/adb/magisk/busybox` 写死，并且用 `awk` 的 `xor()` 扩展做 AES。
+结果在 **KernelSU** 上直接装不上（那个路径不存在），而 Android 自带的
+toybox awk **又没有** `xor()`。
+
+现在的做法：
+
+* AES 的位运算全部用四则运算自己实现（`bin/mtaes.awk` 里的 `bxor()`），
+  toybox awk / busybox awk / gawk 都能跑
+* 十六进制转换用 `od` + awk 的 `printf "%c"`，有 `xxd` 时走 xxd 快路径
+* 安装时做的是**功能自检**（真解密一个场景），而不是探测环境有没有某个扩展
+
+```bash
+mt selftest
+# 工具链: awk=awk  xxd=xxd
+# ✅ 解密成功 (2920 字节): [BAT_SOC]
+# ✅ 加密往返与原厂密文逐字节一致
+# 自检通过 ✅
+```
 
 ---
 
@@ -159,6 +195,7 @@ mt scenarios                 # 列出所有场景
 mt show thermal-normal.conf  # 查看某场景明文配置
 mt decrypt                   # 重新解密全部场景 (OTA 升级后用)
 mt sections thermal-normal.conf   # 列出某场景的节和可改的键 (JSON)
+mt selftest                  # 自检: 解密 + 加密往返, 与原厂密文逐字节比对
 
 # ---- 修改阈值 ----
 # 语法: mt set <场景> <节名> <键> <新值...>
@@ -218,16 +255,39 @@ CPU 降频 / GPU 降频 / 充电限流 / 背光 / 基带限功率 / 拔核
 
 ### 设备端 AES 实现
 
-`module/bin/mtaes.awk` / `module/bin/mtdec.awk` 是纯 busybox awk 实现的 AES-128-CBC。
+`module/bin/mtaes.awk` / `module/bin/mtdec.awk` 是纯 awk 实现的 AES-128-CBC。
 
-两个踩坑点（已处理）：
+三个踩坑点（已处理）：
 
-1. Android 自带的 `/system/bin/awk`（toybox）**没有** `xor()` / `lshift()`，
-   必须用 Magisk busybox 的 awk
-2. awk 里的 `^` 是**幂运算**不是异或，异或要用 `xor()` 函数
+1. **不要用 awk 的 `xor()` / `and()` / `lshift()`** —— 这些是 GNU awk 扩展，
+   Android 自带的 toybox awk 没有。位运算用四则运算自己实现。
+2. **awk 里的 `^` 是幂运算**不是异或，异或必须用 `xor()` 函数。
+3. **InvMixColumns 的第 4 行**用 `3·a0`，不是 `3·a3`：
+   `b3 = 3·a0 ⊕ a1 ⊕ a2 ⊕ 2·a3`
+
+正确性验证（模块自带）：
+
+```bash
+mt selftest
+# ✅ 解密成功 (2920 字节): [BAT_SOC]
+# ✅ 加密往返与原厂密文逐字节一致
+```
 
 配置文件的完整格式、虚拟温度算法、字段语义见
 **[`docs/thermal-config-format.md`](docs/thermal-config-format.md)**。
+
+### 性能
+
+采样一次要读 8 个温区 + 53 个散热设备 + 十几个频率/电池节点。
+早期版本用 `$(cat ...)` 逐个读，**130 多次进程 fork，一次要 2.4 秒**——
+App 切后台时进程被冻结，飞行中的那次调用返回空结果，界面就会闪一次「读取失败」。
+
+现在改用 awk 的 `getline` 直接读文件，全程只有 2 个进程：
+
+| | 之前 | 现在 |
+|---|---|---|
+| `mt json`（一次完整采样） | 2400 ms | **280 ms** |
+| 16 个场景全部解密 | — | 7.7 s |
 
 ---
 

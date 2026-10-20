@@ -1,9 +1,12 @@
 #!/system/bin/sh
 #=======================================================================
 #  MiThermal Tuner  -  common library
+#
+#  零外部依赖: 只用 Android 自带的 toybox (awk / od / sed / grep ...)。
+#  不依赖 Magisk busybox, 所以 Magisk / KernelSU / APatch 都能用,
+#  也不需要在模块里塞一个 busybox。
 #=======================================================================
 
-BB=/data/adb/magisk/busybox
 MODDIR=${MODDIR:-/data/adb/modules/mi_thermal_tuner}
 WORK=/data/adb/mi_thermal
 PLAIN_DIR=$WORK/plain
@@ -14,6 +17,44 @@ APPLY_DIR=/data/vendor/thermal/config
 VENDOR_CONF=/vendor/etc
 THERMALD_DUMP=/data/vendor/thermal/thermal.dump
 THERMALD_LIVE=/data/vendor/thermal/decrypt.txt
+
+# ---- 工具解析 -------------------------------------------------------------
+# awk: AES 是纯算术实现, toybox / busybox / gawk 都能跑
+AWK=${AWK:-awk}
+# xxd: Android 9+ 自带; 没有就用 od + awk 的 printf "%c" 兜底
+if [ -z "$XXD" ]; then
+  if [ -x /system/bin/xxd ] || command -v xxd >/dev/null 2>&1; then
+    XXD="xxd"
+  else
+    XXD=""
+  fi
+fi
+
+# 二进制文件 -> 十六进制文本 (单行, 无空白)
+mt_hex_of() {
+  if [ -n "$XXD" ]; then
+    $XXD -p "$1" 2>/dev/null | tr -d ' \n'
+  else
+    od -An -v -tx1 "$1" 2>/dev/null | tr -d ' \n'
+  fi
+}
+
+# 十六进制文本 (stdin) -> 二进制 (stdout)
+mt_bin_of() {
+  if [ -n "$XXD" ]; then
+    tr -d ' \n' | $XXD -r -p 2>/dev/null
+  else
+    tr -d ' \n' | $AWK '{
+      h = $0
+      gsub(/[^0-9a-fA-F]/, "", h)
+      for (i = 1; i <= length(h); i += 2) {
+        a = index("0123456789abcdef", tolower(substr(h, i, 1))) - 1
+        b = index("0123456789abcdef", tolower(substr(h, i + 1, 1))) - 1
+        printf "%c", a * 16 + b
+      }
+    }'
+  fi
+}
 
 # ---- known scenario name -> friendly label -------------------------------
 scenario_label() {
@@ -40,18 +81,29 @@ scenario_label() {
 # ---- crypto helpers ------------------------------------------------------
 # encrypt  $1=plain file  $2=out cipher file
 mt_encrypt() {
-  xxd -p "$1" 2>/dev/null | tr -d ' \n' \
-    | $BB awk -f "$MODDIR/bin/mtaes.awk" \
-    | tr -d '\n' | xxd -r -p > "$2" 2>/dev/null
+  mt_hex_of "$1" | $AWK -f "$MODDIR/bin/mtaes.awk" | mt_bin_of > "$2" 2>/dev/null
   [ -s "$2" ]
 }
 
 # decrypt  $1=cipher file  $2=out plain file
 mt_decrypt() {
-  xxd -p "$1" 2>/dev/null | tr -d ' \n' \
-    | $BB awk -f "$MODDIR/bin/mtdec.awk" \
-    | tr -d '\n' | xxd -r -p > "$2" 2>/dev/null
+  mt_hex_of "$1" | $AWK -f "$MODDIR/bin/mtdec.awk" | mt_bin_of > "$2" 2>/dev/null
   [ -s "$2" ]
+}
+
+# 自检: 用模块自带的 AES 解密一个真实场景, 看能不能读出明文。
+# 比探测 awk 有没有 xor() 可靠得多 —— 任何一步不通都会失败。
+mt_selftest() {
+  _f=$VENDOR_CONF/thermal-normal.conf
+  [ -f "$_f" ] || return 1
+  _t=$WORK/.selftest.$$
+  mt_decrypt "$_f" "$_t" || { rm -f "$_t"; return 1; }
+  if head -1 "$_t" | grep -q '^\['; then
+    rm -f "$_t"
+    return 0
+  fi
+  rm -f "$_t"
+  return 1
 }
 
 # ---- scenario cache ------------------------------------------------------
@@ -89,15 +141,66 @@ mt_cache_refresh() {
   mkdir -p "$PLAIN_DIR" "$CIPHER_DIR"
   for s in $(mt_all_scenarios); do
     rm -f "$PLAIN_DIR/$s"
-    mt_cache_get "$s"
   done
+  # 并行解密 (16 个场景串行要 5~8 秒)
+  for s in $(mt_all_scenarios); do
+    ( mt_cache_get "$s" ) &
+  done
+  wait
 }
 
 # vendor keeps a few scenario files in clear text (size not a multiple of 16)
 mt_is_plain() {
   _s=$1
-  _sz=$($BB stat -c %s "$VENDOR_CONF/$_s" 2>/dev/null || echo 0)
+  _sz=$(stat -c %s "$VENDOR_CONF/$_s" 2>/dev/null || echo 0)
   [ $((_sz % 16)) -ne 0 ]
+}
+
+# ---- verify ---------------------------------------------------------------
+# 确认 mi_thermald 真的加载了我们写下去的配置:
+# 把落盘的那份配置解密出来, 和 mi_thermald 运行时解密出的 decrypt.txt 比对。
+# 输出 OK / MISMATCH, 供 GUI 做「是否真的生效」的判断。
+mt_verify() {
+  _sc=$(mt_active_scenario_name)
+  if [ -z "$_sc" ]; then
+    echo "无法确定当前生效的场景"
+    return 1
+  fi
+  if [ ! -s "$THERMALD_LIVE" ]; then
+    echo "mi_thermald 尚未产出 decrypt.txt"
+    return 1
+  fi
+  _src=""
+  if [ -f "$APPLY_DIR/$_sc" ]; then
+    _src=$APPLY_DIR/$_sc
+  else
+    _src=$VENDOR_CONF/$_sc
+  fi
+  [ -f "$_src" ] || { echo "找不到 $_src"; return 1; }
+  _a=$WORK/.verify_a.$$
+  _b=$WORK/.verify_b.$$
+  # mi_thermald 重启后 decrypt.txt 需要 1~2 秒才刷新, 重试几次避免误报
+  _try=1
+  while [ "$_try" -le 3 ]; do
+    if ! mt_decrypt "$_src" "$_a"; then
+      rm -f "$_a" "$_b"
+      echo "解密落盘配置失败"
+      return 1
+    fi
+    # 只比正文, 忽略空行差异
+    grep -v '^[[:space:]]*$' "$_a" > "$_a.n" 2>/dev/null
+    grep -v '^[[:space:]]*$' "$THERMALD_LIVE" > "$_b.n" 2>/dev/null
+    if cmp -s "$_a.n" "$_b.n" 2>/dev/null; then
+      rm -f "$_a" "$_b" "$_a.n" "$_b.n"
+      echo "OK"
+      return 0
+    fi
+    _try=$((_try + 1))
+    [ "$_try" -le 3 ] && sleep 2
+  done
+  rm -f "$_a" "$_b" "$_a.n" "$_b.n"
+  echo "MISMATCH"
+  return 1
 }
 
 # ---- apply ---------------------------------------------------------------
@@ -139,7 +242,7 @@ mt_set_key() {
   _val="$*"
   mt_cache_get "$_s" || { echo "!! 找不到场景 $_s" >&2; return 1; }
   _tmp=$WORK/.edit.$$
-  $BB awk -v sec="$_sec" -v key="$_key" -v val="$_val" '
+  $AWK -v sec="$_sec" -v key="$_key" -v val="$_val" '
     $0 ~ "^\\[" {
         cur = ($0 == "[" sec "]")
         print
@@ -178,7 +281,7 @@ mt_profile_apply() {
   for s in $(mt_all_scenarios); do
     mt_cache_get "$s" || continue
     _tmp=$WORK/.prof.$$
-    $BB awk -v d="$_delta" -v mf="$_minf" '
+    $AWK -v d="$_delta" -v mf="$_minf" '
       function vals(line,   n, a, i, m, out) {
         n = split(line, a, /[ \t]+/)
         m = 0
@@ -229,6 +332,15 @@ mt_profile_apply() {
     ' "$PLAIN_DIR/$s" > "$_tmp" 2>/dev/null
     if [ -s "$_tmp" ]; then
       mv -f "$_tmp" "$PLAIN_DIR/$s"
+    else
+      rm -f "$_tmp"
+    fi
+  done
+
+  # --- 第二步: 加密并落盘 (并行, 16 个场景从十几秒压到 1 秒左右) ---
+  for s in $(mt_all_scenarios); do
+    [ -f "$PLAIN_DIR/$s" ] || continue
+    (
       if mt_is_plain "$s"; then
         cp -f "$PLAIN_DIR/$s" "$APPLY_DIR/$s" 2>/dev/null
       else
@@ -237,10 +349,10 @@ mt_profile_apply() {
       fi
       chown root:system "$APPLY_DIR/$s" 2>/dev/null
       chmod 644 "$APPLY_DIR/$s" 2>/dev/null
-    else
-      rm -f "$_tmp"
-    fi
+    ) &
   done
+  wait
+
   setprop ctl.restart mi_thermald
   sleep 3
   echo "预设已应用并重启 mi_thermald"
@@ -253,16 +365,16 @@ mt_ovr_save() {
 }
 mt_ovr_set() {  # key value
   mt_ovr_save
-  $BB sed -i "/^$1=/d" "$OVERRIDE_FILE" 2>/dev/null
+  sed -i "/^$1=/d" "$OVERRIDE_FILE" 2>/dev/null
   echo "$1=$2" >> "$OVERRIDE_FILE"
 }
 mt_ovr_get() {
   [ -f "$OVERRIDE_FILE" ] || return 1
-  $BB grep "^$1=" "$OVERRIDE_FILE" 2>/dev/null | head -1 | cut -d= -f2-
+  grep "^$1=" "$OVERRIDE_FILE" 2>/dev/null | head -1 | cut -d= -f2-
 }
 mt_ovr_del() {
   [ -f "$OVERRIDE_FILE" ] || return 0
-  $BB sed -i "/^$1=/d" "$OVERRIDE_FILE" 2>/dev/null
+  sed -i "/^$1=/d" "$OVERRIDE_FILE" 2>/dev/null
 }
 
 mt_cap_cpu() {  # policy khz | off
@@ -281,7 +393,7 @@ mt_cap_cpu() {  # policy khz | off
 
 mt_gpu_hw_max() {
   # kgsl devfreq 没有 hw_max_freq，用 available_frequencies 的最大值代替
-  $BB tr ' ' '\n' < /sys/class/kgsl/kgsl-3d0/devfreq/available_frequencies 2>/dev/null \
+  tr ' ' '\n' < /sys/class/kgsl/kgsl-3d0/devfreq/available_frequencies 2>/dev/null \
     | grep -E '^[0-9]+$' | sort -n | tail -1
 }
 

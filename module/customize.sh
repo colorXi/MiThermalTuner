@@ -1,9 +1,11 @@
 #!/system/bin/sh
 #=======================================================================
 #  MiThermal Tuner  -  customize.sh (Magisk 安装脚本)
+#
+#  零外部依赖: 只用 Android 自带的 toybox, 不需要 busybox,
+#  Magisk / KernelSU / APatch 都能装。
 #=======================================================================
 SKIPUNZIP=0
-BB=/data/adb/magisk/busybox
 MODDIR=/data/adb/modules/mi_thermal_tuner
 WORK=/data/adb/mi_thermal
 
@@ -16,13 +18,18 @@ if [ ! -f /vendor/bin/mi_thermald ]; then
   abort "! 未找到 mi_thermald，本模块只适用于搭载小米温控守护进程的小米设备"
 fi
 
-if ! $BB awk 'BEGIN{ exit !(xor(1,2)==3) }' 2>/dev/null; then
-  abort "! busybox awk 缺少 xor() 运算支持，无法使用 AES 加解密"
-fi
-
 for f in bin/mt bin/mtaes.awk bin/mtdec.awk lib/common.sh lib/monitor.sh; do
   [ -f "$MODPATH/$f" ] || abort "! 模块文件缺失: $f"
 done
+
+# 功能自检: 用模块自带的 AES 真的解密一个场景, 能读出明文才算通过。
+# (比探测 awk 有没有 xor() 可靠 —— 任何一步不通都会失败)
+MODDIR=$MODPATH
+. $MODPATH/lib/common.sh
+if ! mt_selftest; then
+  abort "! AES 自检失败：本机的 awk 无法完成解密 (需要支持 substr/split/match/sprintf 的 awk)"
+fi
+ui_print "  AES 自检通过"
 
 chmod 755 "$MODPATH/bin/mt" "$MODPATH/service.sh" "$MODPATH/post-fs-data.sh" \
            "$MODPATH/uninstall.sh" "$MODPATH/customize.sh" 2>/dev/null

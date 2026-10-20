@@ -25,12 +25,15 @@ public class MainActivity extends Activity {
 
     private static final String TAG = "MiThermal";
     private static final String MT = "/data/adb/modules/mi_thermal_tuner/bin/mt";
+    private static final long ROOT_TIMEOUT_MS = 12000;
 
     /** 允许执行的 mt 子命令白名单（防止通过注入执行任意命令） */
     private static final String[] ALLOWED = {
             "json", "json.scenarios", "json.profiles", "sections ", "show ",
             "profile apply ", "profile show ", "restore", "reset", "overrides",
-            "set ", "cap ", "tempstate ", "decrypt"
+            "set ", "cap ", "tempstate ", "decrypt",
+            // 下面这几个 GUI 也会用到, 漏了会导致功能静默失效
+            "verify", "selftest", "log ", "status", "watch", "scenarios"
     };
 
     private WebView web;
@@ -49,6 +52,13 @@ public class MainActivity extends Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         web.setWebViewClient(new WebViewClient());
+        web.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage cm) {
+                Log.i(TAG, "JS: " + cm.message() + " @" + cm.lineNumber());
+                return true;
+            }
+        });
         web.setBackgroundColor(0xFF0B0E14);
         web.addJavascriptInterface(new Bridge(), "Native");
         setContentView(web);
@@ -61,6 +71,29 @@ public class MainActivity extends Activity {
         else super.onBackPressed();
     }
 
+    // 前后台切换: 让页面知道可以暂停/恢复轮询了
+    @Override
+    protected void onPause() {
+        super.onPause();
+        callJs("window.__mtPause && window.__mtPause()");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        callJs("window.__mtResume && window.__mtResume()");
+    }
+
+    private void callJs(final String js) {
+        if (web == null) return;
+        web.post(() -> {
+            try {
+                web.evaluateJavascript(js, null);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
     @Override
     protected void onDestroy() {
         pool.shutdownNow();
@@ -70,18 +103,34 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------------ root
     private String runRoot(String cmd) {
         Process p = null;
+        long t0 = System.currentTimeMillis();
         try {
             ProcessBuilder pb = new ProcessBuilder("su", "-c", cmd);
             pb.redirectErrorStream(true);
             p = pb.start();
+            final Process proc = p;
+            // 看门狗: su 卡住时强杀, 免得 JS 那边永远等不到回调
+            Thread wd = new Thread(() -> {
+                try {
+                    Thread.sleep(ROOT_TIMEOUT_MS);
+                } catch (InterruptedException ignored) {
+                    return;
+                }
+                if (proc.isAlive()) proc.destroyForcibly();
+            });
+            wd.setDaemon(true);
+            wd.start();
+
             StringBuilder sb = new StringBuilder();
-            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()));
             String line;
             while ((line = br.readLine()) != null) sb.append(line).append('\n');
-            p.waitFor();
-            return sb.toString();
+            proc.waitFor();
+            String out = sb.toString();
+            Log.i(TAG, "runRoot(" + cmd + ") exit=" + proc.exitValue() + " " + (System.currentTimeMillis() - t0) + "ms out=[" + out.replace("\n", "\\n") + "]");
+            return out;
         } catch (Exception e) {
-            Log.e(TAG, "exec failed", e);
+            Log.e(TAG, "runRoot(" + cmd + ") failed after " + (System.currentTimeMillis() - t0) + "ms", e);
             return "ERR: " + e.getMessage();
         } finally {
             if (p != null) p.destroy();
@@ -109,7 +158,10 @@ public class MainActivity extends Activity {
     }
 
     private String execChecked(String cmd) {
-        if (!allowed(cmd)) return "ERR: 命令不被允许";
+        if (!allowed(cmd)) {
+            Log.w(TAG, "命令不在白名单内, 已拒绝: " + cmd);
+            return "ERR: 命令不被允许 (" + cmd + ")";
+        }
         // JS 传的是 "mt json" 这种形式, 换成模块里的绝对路径
         String full = cmd.startsWith("mt ") ? MT + " " + cmd.substring(3) : cmd;
         return runRoot(full);

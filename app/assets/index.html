@@ -137,6 +137,19 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.err{border-color:#5A2027;background:#2A1215;color:#FFB4B8}
 
+/* ---------- busy overlay ---------- */
+.busy{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.58);backdrop-filter:blur(3px)}
+.busy.show{display:flex}
+.busybox{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 30px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 14px 44px rgba(0,0,0,.55);
+  max-width:78vw;text-align:center}
+.spinner{width:28px;height:28px;border:3px solid #ffffff20;border-top-color:var(--acc);
+  border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#busyText{font-size:13.5px;color:var(--fg);line-height:1.5}
+#busyText b{color:var(--acc2);font-weight:600}
+
 /* ---------- modal ---------- */
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:40;display:none;
   align-items:center;justify-content:center;padding:20px}
@@ -294,6 +307,13 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 
 <div id="toast"></div>
 
+<div class="busy" id="busy">
+  <div class="busybox">
+    <div class="spinner"></div>
+    <div id="busyText">处理中…</div>
+  </div>
+</div>
+
 <div class="mask" id="mask">
   <div class="modal">
     <h3 id="mTitle">标题</h3>
@@ -311,23 +331,37 @@ const $ = id => document.getElementById(id);
 /* ---------------- bridge ---------------- */
 let cbId = 0;
 const pending = new Map();
+
+// 每次调用都带一个超时兜底:
+// 万一原生回调没回来 (Activity 被销毁 / 进程被杀), promise 也不能永远挂着,
+// 否则 refreshing 标志会卡死, 页面再也不刷新。
 function native(cmd){
   return new Promise(res =>{
     const id = ++cbId;
-    pending.set(id, res);
+    const timer = setTimeout(()=>{
+      if(pending.has(id)){ pending.delete(id); res(''); }
+    }, 15000);
+    const fin = v => {
+      clearTimeout(timer);
+      pending.delete(id);
+      res(v);
+    };
+    pending.set(id, fin);
     try{ Native.exec(cmd, ''+id); }
-    catch(e){ pending.delete(id); res('ERR: '+e); }
+    catch(e){ fin('ERR: '+e); }
   });
 }
 window.__mtDone = function(id, out){
   const f = pending.get(+id);
-  if(f){ pending.delete(+id); f(out); }
+  if(f) f(out);
 };
 function checkEnv(){
   return new Promise(res=>{
     const id = ++cbId;
-    pending.set(id, res);
-    try{ Native.check(''+id); }catch(e){ pending.delete(id); res('ERR'); }
+    const timer = setTimeout(()=>{ pending.delete(id); res('{}'); }, 15000);
+    const fin = v => { clearTimeout(timer); pending.delete(id); res(v); };
+    pending.set(id, fin);
+    try{ Native.check(''+id); }catch(e){ fin('{}'); }
   });
 }
 
@@ -469,12 +503,111 @@ function drawSpark(){
   ctx.fillStyle = '#FF6B2C'; ctx.fill();
 }
 
-/* ---------------- data ---------------- */
-async function refresh(){
-  const out = await native('mt json');
-  const d = parse(out);
-  if(d) render(d); else toast('读取失败: '+(out||'').slice(0,80), true);
+/* ---------------- 写操作框架: 加载动画 + 超时 + 生效校验 ---------------- */
+function showBusy(text){ $('busyText').innerHTML = text || '处理中…'; $('busy').classList.add('show'); }
+function hideBusy(){ $('busy').classList.remove('show'); }
+
+function withTimeout(p, ms, msg){
+  let t;
+  const guard = new Promise((_, rej)=>{ t = setTimeout(()=>rej(new Error(msg || '操作超时')), ms); });
+  return Promise.race([p, guard]).finally(()=>clearTimeout(t));
 }
+
+function errText(out){
+  const t = (out || '').trim();
+  if(!t) return '没有返回结果 (可能进程被系统冻结)';
+  if(/^ERR:/.test(t)) return t.split('\n').pop();
+  if(/失败|错误|not found|No such/i.test(t)) return t.split('\n').pop();
+  return '';
+}
+
+// 统一的写操作: 遮罩 -> 执行 -> 校验 -> 反馈
+async function runOp(label, cmd, opts){
+  opts = opts || {};
+  showBusy(label);
+  try{
+    const out = await withTimeout(native(cmd), opts.timeout || 30000, (opts.name || '操作') + '超时');    const e = errText(out);
+    if(e) throw new Error(e);
+    if(opts.verify){
+      const v = await withTimeout(native('mt verify'), 15000, '生效校验超时');
+      if((v || '').indexOf('OK') < 0) {
+        throw new Error('命令已执行, 但未检测到 mi_thermald 加载新配置 (请查看 mt log)');
+      }
+    }
+    await refresh(true);
+    return { ok: true };
+  }catch(err){
+    toast(String(err.message || err), true);
+    return { ok: false };
+  }finally{
+    hideBusy();
+  }
+}
+
+// 回读校验: 重新读一遍场景配置, 看目标键是不是真的变成了新值
+async function verifyKey(sc, sec, key, val){
+  const out = await withTimeout(native('mt show ' + sc), 20000, '回读校验超时');
+  const lines = (out || '').split('\n');
+  let inSec = false, cur = null, seen = false;
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for(const ln of lines){
+    if(ln.trim().startsWith('[')){ inSec = (ln.trim() === '[' + sec + ']'); continue; }
+    if(!inSec) continue;
+    const m = ln.match(new RegExp('^\\s*' + esc + '\\s+(.*)$'));
+    if(m){ cur = m[1].trim(); seen = true; break; }
+  }
+  console.log('verifyKey sc=' + sc + ' sec=' + sec + ' key=' + key +
+              ' val=' + JSON.stringify(val) + ' cur=' + JSON.stringify(cur) +
+              ' found=' + seen + ' outLen=' + (out||'').length);
+  return seen && cur === String(val).trim();
+}
+
+/* ---------------- data ---------------- */
+// 连续失败计数: 后台期间进程被冻结, 回到前台那一轮很可能读到空结果,
+// 这属于正常现象, 不该弹错误。只有连续多次失败才提示。
+let failCount = 0;
+let refreshing = false;
+let timer = null;
+let foreground = true;
+
+async function refresh(silent){
+  if(refreshing) return false;          // 别让请求堆积
+  refreshing = true;
+  try{
+    const out = await native('mt json');
+    const d = parse(out);
+    if(d){ render(d); failCount = 0; return true; }
+    failCount++;
+    if(failCount >= 3 && !silent) toast('读取失败: '+(out||'').slice(0,80), true);
+    return false;
+  } finally {
+    refreshing = false;
+  }
+}
+
+function startTimer(){
+  if(timer) clearInterval(timer);
+  timer = setInterval(()=>refresh(true), 2000);
+}
+function stopTimer(){
+  if(timer){ clearInterval(timer); timer = null; }
+}
+
+// 前台 / 后台
+window.__mtPause = function(){
+  foreground = false;
+  stopTimer();
+};
+window.__mtResume = function(){
+  foreground = true;
+  failCount = 0;                          // 清掉后台期间累积的失败
+  refresh(true);                          // 静默刷新, 失败也不打扰用户
+  startTimer();
+};
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden) window.__mtPause();
+  else window.__mtResume();
+});
 
 async function loadPresets(){
   const out = await native('mt json.profiles');
@@ -484,11 +617,16 @@ async function loadPresets(){
     `<button data-p="${p.name}">${p.name==='stock'?'原厂':p.name}<small>${esc(p.desc||'')}</small></button>`).join('');
   $('presets').querySelectorAll('button').forEach(b=>{
     b.onclick = async ()=>{
-      $('presets').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on');
-      const r = b.dataset.p==='stock' ? await native('mt restore') : await native('mt profile apply '+b.dataset.p);
-      toast((r||'').trim().split('\n').pop() || '完成');
-      setTimeout(refresh, 1200);
+      const p = b.dataset.p;
+      const stock = (p === 'stock');
+      const r = await runOp(stock ? '正在恢复原厂配置…' : ('正在应用预设 <b>'+p+'</b> 到全部 16 个场景…'),
+                           stock ? 'mt restore' : ('mt profile apply ' + p),
+                           { verify: true, name: stock ? '恢复原厂' : '预设应用', timeout: 90000 });
+      if(r.ok){
+        $('presets').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        toast(stock ? '已恢复原厂配置' : ('预设已生效: ' + p));
+      }
     };
   });
 }
@@ -539,14 +677,12 @@ async function loadCurrentValue(){
 
 /* ---------------- actions ---------------- */
 $('btnRestore').onclick = async ()=>{
-  const r = await native('mt restore');
-  toast((r||'').trim().split('\n').pop());
-  setTimeout(refresh, 1200);
+  const r = await runOp('正在恢复原厂配置…', 'mt restore', { verify: true, name: '恢复原厂' });
+  if(r.ok){ $('presets').querySelectorAll('button').forEach(x=>x.classList.remove('on')); toast('已恢复原厂配置'); }
 };
 $('btnReset').onclick = async ()=>{
-  const r = await native('mt reset');
-  toast((r||'').trim().split('\n').pop());
-  setTimeout(refresh, 1200);
+  const r = await runOp('正在撤销全部实时限制…', 'mt reset', { name: '撤销限制' });
+  if(r.ok) toast('已撤销全部实时限制');
 };
 $('btnRefresh').onclick = ()=>{ refresh(); toast('已刷新'); };
 $('btnLog').onclick = async ()=>{
@@ -564,11 +700,28 @@ $('btnSave').onclick = async ()=>{
   const sc = $('selSc').value, sec = $('selSec').value, key = $('selKey').value;
   const val = $('edVal').value.trim();
   if(!sc||!sec||!key||!val){ toast('请填写完整', true); return; }
-  const cmd = 'mt set ' + sc + ' ' + sec + ' ' + key + ' "' + val + '"';
-  const r = await native(cmd);
-  const t = (r||'').trim();
-  toast(t.split('\n').pop() || '已保存', /失败|ERR/.test(t));
-  setTimeout(refresh, 1500);
+  showBusy('正在写入配置并重启 mi_thermald…');
+  try{
+    const out = await withTimeout(native('mt set '+sc+' '+sec+' '+key+' "'+val+'"'), 30000, '写入超时');
+    const e = errText(out);
+    console.log('save out=' + JSON.stringify((out||'').slice(0,160)));
+    if(e) throw new Error(e);
+    // 1) 权威校验: mi_thermald 运行时加载的配置 == 我们落盘的那份
+    const v = await withTimeout(native('mt verify'), 15000, '生效校验超时');
+    if((v||'').indexOf('OK') >= 0){
+      toast('已生效');
+    }else{
+      // 2) 退而求其次: 逐键回读, 给出更具体的差异
+      const good = await verifyKey(sc, sec, key, val);
+      if(!good) throw new Error('写入完成, 但回读校验不一致, 请检查');
+      toast('已写入 (mi_thermald 校验未通过, 建议查看 mt log)');
+    }
+  }catch(err){
+    toast(String(err.message || err), true);
+  }finally{
+    hideBusy();
+    refresh(true);
+  }
 };
 
 ['rCpu4','rCpu7','rGpu','rChg'].forEach(id=>{
@@ -576,17 +729,36 @@ $('btnSave').onclick = async ()=>{
   el.addEventListener('pointerdown', ()=>S.dragging=true);
   el.addEventListener('pointerup',   ()=>S.dragging=false);
   el.addEventListener('input', ()=>{
-    if(id==='rCpu4') $('vCpu4').textContent = khz(el.value);
-    if(id==='rCpu7') $('vCpu7').textContent = khz(el.value);
+    if(id==='rCpu4') $('vCpu4').textContent = khz2s(el.value);
+    if(id==='rCpu7') $('vCpu7').textContent = khz2s(el.value);
     if(id==='rGpu')  $('vGpu').textContent  = hz2s(el.value);
     if(id==='rChg')  $('vChg').textContent  = '档位 '+el.value;
   });
   el.addEventListener('change', async ()=>{
-    if(id==='rCpu4'){ const r=await native('mt cap cpu 4 '+el.value); toast('大核上限已设置'); }
-    if(id==='rCpu7'){ const r=await native('mt cap cpu 7 '+el.value); toast('超大核上限已设置'); }
-    if(id==='rGpu'){  const r=await native('mt cap gpu '+el.value);  toast('GPU 上限已设置'); }
-    if(id==='rChg'){  const r=await native('mt cap charge '+el.value); toast('充电限流档位 '+el.value); }
-    setTimeout(refresh, 700);
+    const v = el.value;
+    if(id==='rChg'){
+      const r = await runOp('正在设置充电限流档位…', 'mt cap charge '+v, { name:'充电限流' });
+      if(r.ok) toast('充电限流档位 -> '+v);
+      return;
+    }
+    let cmd, label, check;
+    if(id==='rCpu4'){ cmd='mt cap cpu 4 '+v; label='正在设置大核上限…'; check=d=>Math.abs(d.cpu4max - +v)<1; }
+    if(id==='rCpu7'){ cmd='mt cap cpu 7 '+v; label='正在设置超大核上限…'; check=d=>Math.abs(d.cpu7max - +v)<1; }
+    if(id==='rGpu'){  cmd='mt cap gpu '+v;  label='正在设置 GPU 上限…';    check=d=>Math.abs(d.gpumax  - +v)<1; }
+    showBusy(label);
+    try{
+      const out = await withTimeout(native(cmd), 20000, '设置超时');
+      const e = errText(out);
+      if(e) throw new Error(e);
+      const d = parse(await withTimeout(native('mt json'), 15000, '回读校验超时'));
+      if(d && check && !check(d)) throw new Error('写入完成, 但回读校验不一致');
+      toast('已生效');
+    }catch(err){
+      toast(String(err.message || err), true);
+    }finally{
+      hideBusy();
+      refresh(true);
+    }
   });
 });
 $('chgMinus').onclick = ()=>{ $('rChg').value = Math.max(0, +$('rChg').value-1); $('rChg').dispatchEvent(new Event('input')); $('rChg').dispatchEvent(new Event('change')); };
@@ -598,9 +770,8 @@ function buildTs(){
   $('tsBtns').querySelectorAll('button').forEach(b=>{
     b.onclick = async ()=>{
       const v = b.dataset.v;
-      await native('mt tempstate ' + v);
-      toast(v==='off' ? '已恢复跟随系统' : '温控状态强制为 '+v);
-      setTimeout(refresh, 600);
+      const r = await runOp('正在设置系统温控状态…', 'mt tempstate ' + v, { name:'温控状态' });
+      if(r.ok) toast(v==='off' ? '已恢复跟随系统' : ('温控状态强制为 ' + v));
     };
   });
 }
@@ -623,8 +794,8 @@ function buildTs(){
   }
   await loadPresets();
   await loadScenarios();
-  await refresh();
-  setInterval(refresh, 2500);
+  await refresh(true);
+  startTimer();
 })();
 </script>
 </body>

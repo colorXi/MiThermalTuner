@@ -118,7 +118,7 @@ case "$1" in
         for p in $MODDIR/profiles/*.profile; do
           [ -f "$p" ] || continue
           n=${p##*/}; n=${n%.profile}
-          d=$($BB grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
+          d=$(grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
           printf "%-12s %s\n" "$n" "$d"
         done
         ;;
@@ -179,6 +179,37 @@ case "$1" in
     echo "实时覆写已全部清除"
     ;;
 
+  verify)
+    # 确认 mi_thermald 真的加载了当前落盘的配置
+    mt_verify
+    ;;
+
+  selftest)
+    # 自检: 用模块自带的 AES 真实解密一个场景, 并做一次加密往返
+    _f=/vendor/etc/thermal-normal.conf
+    if [ ! -f "$_f" ]; then
+      echo "找不到 $_f"
+      exit 1
+    fi
+    echo "工具链: awk=$AWK  xxd=${XXD:-无(走 od 兜底)}"
+    _t=$WORK/.st.$$
+    if ! mt_decrypt "$_f" "$_t"; then
+      echo "❌ 解密失败"
+      exit 1
+    fi
+    echo "✅ 解密成功 ($(wc -c < "$_t") 字节): $(head -1 "$_t")"
+    mt_encrypt "$_t" "$_t.enc"
+    if cmp -s "$_t.enc" "$_f"; then
+      echo "✅ 加密往返与原厂密文逐字节一致"
+      rm -f "$_t" "$_t.enc"
+      echo "自检通过 ✅"
+    else
+      echo "❌ 加密往返不一致"
+      rm -f "$_t" "$_t.enc"
+      exit 1
+    fi
+    ;;
+
   json)
     mt_json
     ;;
@@ -204,7 +235,7 @@ case "$1" in
     for p in $MODDIR/profiles/*.profile; do
       [ -f "$p" ] || continue
       n=${p##*/}; n=${n%.profile}
-      d=$($BB grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
+      d=$(grep -m1 '^desc=' "$p" 2>/dev/null | cut -d= -f2-)
       [ -n "$_out" ] && _out="$_out,"
       _out="$_out{\"name\":\"$n\",\"desc\":\"$d\"}"
     done

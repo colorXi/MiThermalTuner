@@ -1,8 +1,8 @@
 #!/system/bin/sh
 #=======================================================================
 #  MiThermal Tuner  -  uninstall.sh
+#  零外部依赖：只用 Android 自带的 toybox
 #=======================================================================
-BB=/data/adb/magisk/busybox
 WORK=/data/adb/mi_thermal
 APPLY_DIR=/data/vendor/thermal/config
 

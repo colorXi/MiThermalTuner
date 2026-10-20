@@ -5,7 +5,6 @@
 #=======================================================================
 MODDIR=/data/adb/modules/mi_thermal_tuner
 WORK=/data/adb/mi_thermal
-BB=/data/adb/magisk/busybox
 
 mkdir -p "$WORK"
 
