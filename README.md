@@ -30,7 +30,26 @@
 * 常驻监控温控状态、真实温度、实际频率、充电电流、生效中的散热设备
 
 <div align="center">
-  <img src="docs/ui.png" width="360" alt="温控面板">
+  <img src="docs/ui.png" width="330" alt="温控面板 · 仪表盘">
+</div>
+
+### 界面一览
+
+<div align="center">
+
+<table>
+<tr>
+<td width="33%"><img src="docs/shots/01-dashboard.png" alt="仪表盘"><br><b>仪表盘</b><br><sub>虚拟温度环形表 · 历史曲线 · 7 路传感器 · 频率对比</sub></td>
+<td width="33%"><img src="docs/shots/02-presets.png" alt="温控预设"><br><b>温控预设</b><br><sub>原厂 / cool / mild / game / unlock 一键切换</sub></td>
+<td width="33%"><img src="docs/shots/03-limits.png" alt="实时限制"><br><b>实时限制</b><br><sub>CPU·GPU 滑块 · 充电限流档位 · 温控状态</sub></td>
+</tr>
+<tr>
+<td width="33%"><img src="docs/shots/04-editor.png" alt="场景配置编辑"><br><b>场景配置编辑</b><br><sub>场景 → 节 → 键 三级联动，改完即加密写回</sub></td>
+<td width="33%"><img src="docs/shots/05-about.png" alt="关于"><br><b>关于</b><br><sub>版本 · 功能 · 作者信息</sub></td>
+<td width="33%"></td>
+</tr>
+</table>
+
 </div>
 
 ### 联系
@@ -268,6 +287,7 @@ python tools/build_module_zip.py     # -> dist/MiThermalTuner.zip
 ├── reference/decrypted/     16 个场景的明文配置 (供研究)
 ├── docs/
 │   ├── ui.png
+│   ├── shots/                 界面截图
 │   └── thermal-config-format.md
 └── .github/workflows/build.yml
 ```
