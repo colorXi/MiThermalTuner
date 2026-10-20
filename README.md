@@ -19,8 +19,8 @@
 
 | 成品 | 说明 | 大小 |
 |---|---|---|
-| [**`MiThermalTuner-v1.1.1.zip`**](releases/MiThermalTuner-v1.1.1.zip) | Magisk / KernelSU 模块，**装完自动带上图形界面 App** | 38 KB |
-| [**`MiThermal-v1.1.1.apk`**](releases/MiThermal-v1.1.1.apk) | 独立图形界面 App（需先装模块） | 25 KB |
+| [**`MiThermalTuner-v1.2.0.zip`**](releases/MiThermalTuner-v1.2.0.zip) | Magisk / KernelSU 模块，**装完自动带上图形界面 App** | 46 KB |
+| [**`MiThermal-v1.2.0.apk`**](releases/MiThermal-v1.2.0.apk) | 独立图形界面 App（需先装模块） | 29 KB |
 | [**`SHA256SUMS.txt`**](releases/SHA256SUMS.txt) | 完整性校验 | — |
 
 也可以去 [**Releases 页面**](https://github.com/colorXi/MiThermalTuner/releases) 下载（含历史版本与自动构建产物）。
@@ -28,7 +28,7 @@
 **安装步骤**
 
 ```powershell
-adb push releases/MiThermalTuner-v1.1.1.zip /sdcard/Download/
+adb push releases/MiThermalTuner-v1.2.0.zip /sdcard/Download/
 ```
 
 1. Magisk / KernelSU App → **模块** → 从本地安装 → 选中该 zip → **重启**
